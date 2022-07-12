@@ -11,8 +11,9 @@ from tqdm import tqdm
 from transformers import set_seed, BertTokenizer, BertModel, BertConfig
 
 
-# TODO Add MLM auxiliary objective
-# TODO Add an extra MLP layer as optional
+# TODO
+#  1 - For supervised SimCSE, we train our models for 3 epochs, evaluate the model every 250 training steps on the development set of STS-B and keep the best checkpoint for the final evaluation on test sets.
+#  2 - STS tasks and Transfer tasks
 
 class BertForSupervisedSimCse(nn.Module):
     def __init__(self, model_name, temperature, add_mlp_layer):
@@ -23,6 +24,13 @@ class BertForSupervisedSimCse(nn.Module):
 
         self.cosine_similarity = nn.CosineSimilarity(dim=-1)
         self.temperature = temperature
+        self.add_mlp_layer = add_mlp_layer
+
+        if self.add_mlp_layer:  # paper says, performance is same, with or without mlp layer
+            self.mlp_layer = nn.Sequential(
+                nn.Linear(self.config.hidden_size, self.config.hidden_size),
+                nn.Tanh()
+            )
 
     def forward(self, input_ids, attention_mask, token_type_ids, **kwargs):
         batch_size = input_ids.shape[0]
@@ -34,6 +42,9 @@ class BertForSupervisedSimCse(nn.Module):
 
         # encode, (batch_size * 3, hidden_size)
         _, pooler_out = self.bert(input_ids, attention_mask, token_type_ids, return_dict=False)
+
+        if self.add_mlp_layer:
+            pooler_out = self.mlp_layer(pooler_out)
 
         # revert flat, (batch_size, 3, hidden_size)
         pooler_out = pooler_out.view((batch_size, 3, pooler_out.shape[-1]))
@@ -113,7 +124,7 @@ def main():
     # Parser --
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='bert-base-uncased', type=str)  # simcse used bert-base-uncased and roberta-base-cased
-    parser.add_argument('--batch_size', default=12, type=int)
+    parser.add_argument('--batch_size', default=24, type=int)
     parser.add_argument('--seq_max_length', default=128, type=int)
     parser.add_argument('--epochs', default=1, type=int)
     parser.add_argument('--lr', default=1e-3, type=float)
