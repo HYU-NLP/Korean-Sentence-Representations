@@ -12,7 +12,10 @@ from transformers import set_seed, BertTokenizer, BertModel, BertConfig
 
 
 # TODO
-#  1 - For supervised SimCSE, we train our models for 3 epochs, evaluate the model every 250 training steps on the development set of STS-B and keep the best checkpoint for the final evaluation on test sets.
+#  1 - For supervised SimCSE,
+#      we train our models for 3 epochs,
+#      evaluate the model every 250 training steps on the development set of STS-B
+#      and keep the best checkpoint for the final evaluation on test sets.
 #  2 - STS tasks and Transfer tasks
 
 class BertForSupervisedSimCse(nn.Module):
@@ -93,13 +96,15 @@ def save_model_config(path, model_name, model_state_dict, model_config_dict):
     }, path)
 
 
-def pretrain_model(epochs, device, dataloader, model, loss_fn, optimizer, _, model_save_fn):
+def pretrain_model(epochs, device, dataloader, model, loss_fn, optimizer, score_fn, model_save_fn):
     model.to(device)
     loss_fn.to(device)
 
     for epoch in range(1, epochs + 1):
         model.train()
+
         train_loss = 0
+
         for i, batch in enumerate(tqdm(dataloader)):
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
@@ -124,10 +129,10 @@ def main():
     # Parser --
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='bert-base-uncased', type=str)  # simcse used bert-base-uncased and roberta-base-cased
-    parser.add_argument('--batch_size', default=24, type=int)
+    parser.add_argument('--batch_size', default=24, type=int)  # simcse used batch size {64, 128, 256, 512}
     parser.add_argument('--seq_max_length', default=128, type=int)
-    parser.add_argument('--epochs', default=1, type=int)
-    parser.add_argument('--lr', default=1e-3, type=float)
+    parser.add_argument('--epochs', default=3, type=int)
+    parser.add_argument('--lr', default=1e-5, type=float)  # simcse used 1e-5, 3e-5, 5e-5
     parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--seed', default=4885, type=int)
     parser.add_argument('--task', default='sup_simcse', type=str)
@@ -172,10 +177,13 @@ def main():
         optimizer = AdamW(model.parameters(), lr=learning_rate)  # AdamW is used in SimCSE original project
         loss_fn = nn.CrossEntropyLoss()
 
+        def score_fn(pred, label):
+            pass
+
         def model_save_fn(pretrained_model):
             save_model_config(f'checkpoint/{model_state_name}', model_name, pretrained_model.bert.state_dict(), pretrained_model.config.to_dict())
 
-        pretrain_model(epochs, device, train_dataloader, model, loss_fn, optimizer, None, model_save_fn)
+        pretrain_model(epochs, device, train_dataloader, model, loss_fn, optimizer, score_fn, model_save_fn)
 
     else:
         ValueError(f"Unknown task: {task}")
