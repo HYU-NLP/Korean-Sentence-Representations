@@ -28,10 +28,36 @@ import torch
 import numpy as np
 import argparse
 import shutil
-import data_utils
+import data_utils, eval
 from transformers import BertModel, BertTokenizer, GPT2Model, GPT2Tokenizer, set_seed
-import eval
 
+
+
+# class OurSentenceDataset()  => inherits SentenceDataset from sentence_transformer
+# class OurSentenceTransformer(SentenceTransformer)
+# class OutLoss()  => probably inherits AdvCLSoftmaxLoss
+
+
+def train(args, model, tokenizer, train_data, val_data):
+    #need to add branches for large_model
+    if args.train_way == "unsup":
+        pass
+    elif args.train_way == "joint_unsup":
+        pass
+    elif args.train_way == "sup-unsup":
+        pass
+    elif args.train_way == "joint-sup":
+        pass
+   
+
+    #model = SentenceTransformer
+    #model.fit()
+    #copy.deepcopy(model),,, 이런식으로 안하고 그냥 save_path로 할까?
+    #return best_model or model_save
+
+
+def evaluate(args, model, tokenizer, test_data):
+    pass
 
 
 def set_seed(seed: int, for_multi_gpu: bool):
@@ -51,7 +77,6 @@ def set_seed(seed: int, for_multi_gpu: bool):
 def main():
 
     parser = argparse.ArgumentParser()
-    #어떤 방식으로 training할건지 받는 인자만들기
     parser.add_argument("--no_pair", action="store_true", help="If provided, do not pair two training texts") #일단 냅두자
     parser.add_argument("--seed", type=int, required=True, help="Random seed for reproducing experimental results")
     parser.add_argument("--model_name_or_path", type=str, default="bert-base-uncased", help="The model path or model name of pre-trained model")
@@ -76,7 +101,7 @@ def main():
     parser.add_argument("--add_cl", action="store_true", help="Use contrastive loss or not")
     parser.add_argument("--data_augmentation_strategy", type=str, default="adv", choices=["adv", "none", "meanmax", "shuffle", "cutoff", "shuffle-cutoff", "shuffle+cutoff", "shuffle_embeddings"], help="The data augmentation strategy in contrastive learning")
     
-    #feature cutoff는 무조건 column자르는거여서 정작 이거 필요없는데
+    # feature cutoff는 무조건 column자르는거여서 정작 이거 필요없는데
     parser.add_argument("--cutoff_direction", type=str, default=None, help="The direction of cutoff strategy, row, column or random")
     parser.add_argument("--cutoff_rate", type=float, default=None, help="The rate of cutoff strategy, in (0.0, 1.0)")
     parser.add_argument("--cl_loss_only", action="store_true", help="Ignore the main task loss (e.g. the CrossEntropy loss) and use the contrastive loss only")
@@ -92,7 +117,7 @@ def main():
     parser.add_argument("--projection_use_batch_norm", action="store_true", help="Whether to use batch normalization in the hidden layer of MLP")
     parser.add_argument("--contrastive_loss_stop_grad", type=str, default=None, help="Use stop gradient to contrastive loss (and which mode to apply) or not")
     
-    #only for base model?
+    # only for base model?
     parser.add_argument("--da_final_1", type=str, default=None, help="The final 5 data augmentation strategies for view1 (none, shuffle, token_cutoff, feature_cutoff, dropout, span)")
     parser.add_argument("--da_final_2", type=str, default=None, help="The final 5 data augmentation strategies for view2 (none, shuffle, token_cutoff, feature_cutoff, dropout, span)")
     parser.add_argument("--cutoff_rate_final_1", type=float, default=None, help="The final cutoff/dropout rate for view1")
@@ -124,21 +149,12 @@ def main():
 
     # Read the dataset
     train_batch_size = args.batch_size
-    
-    bert_model_type_str = "base" if "base" in args.model_name_or_path else "large"
-#     time_str = datetime.now().strftime("%Y%m%d%H%M%S")
-
+    bert_model_type_str = "base" if "base" in args.model_name_or_path else "large" # this line might not be needed
     adv_loss_rate_str = "" if args.adv_loss_rate == 1.0 else f"-rate{args.adv_loss_rate}"
-    adv_param_str = "" if not args.adv_training else f"adv-{args.noise_norm:.3f}{'-stopgrad' if args.adv_loss_stop_grad else ''}{adv_loss_rate_str}_"
-    
-    cl_mapping_to_lower_str = "" if args.mapping_to_small_space is None else f"-simclr-{args.projection_hidden_dim}-{args.mapping_to_small_space}-{'bn' if args.projection_use_batch_norm else ''}"
-    cl_add_predictor_str = "" if args.add_contrastive_predictor is None else f"-simsiam{'p' if args.add_projection else ''}{args.projection_norm_type if args.projection_norm_type is not None else ''}-{args.projection_hidden_dim}-{args.add_contrastive_predictor}-{'bn' if args.projection_use_batch_norm else ''}"
-    cl_type_str = "" if args.cl_type == "nt_xent" else "-cosine"
-    cl_param_str = "" if not args.add_cl else f"cl-rate{args.cl_rate}-t{args.temperature}{'-stopgrad'+args.contrastive_loss_stop_grad if args.contrastive_loss_stop_grad else ''}{cl_mapping_to_lower_str}{cl_add_predictor_str}{cl_type_str}_"
-    
-    model_save_path = args.model_save_path or os.path.join("./output",
-        f"{args.train_data}_bert-{bert_model_type_str}_{args.batch_size}-{args.num_epochs}_{'maxsqr_' if args.concatenation_sent_max_square else ''}{'stopgrad_' if args.normal_loss_stop_grad else ''}{adv_param_str}{cl_param_str}seed={args.seed}")
-    
+
+
+    model_save_path = args.model_save_path
+
     if os.path.exists(model_save_path):
         if args.force_del:
             shutil.rmtree(model_save_path)
@@ -156,7 +172,7 @@ def main():
         f.write(f"CUDA_VISIBLE_DEVICES={CUDA_VISIBLE_DEVICES} python3 {' '.join(sys.argv)}")
 
 
-    if args.continue_training: #joint-unsup or sup-unsup
+    if args.continue_training: # joint-unsup or sup-unsup
         if args.no_dropout:
             sentence_bert_config_path = os.path.join(args.model_name_or_path, "0_Transformer", "sentence_bert_config.json")
             sentence_bert_config_dict = json.load(open(sentence_bert_config_path, "r"))
@@ -183,11 +199,11 @@ def main():
                                        pooling_mode_cls_token=False,
                                        pooling_mode_max_tokens=False)
         
-        #SentenceTransformer inherits from nn.Sequential
+        # SentenceTransformer inherits from nn.Sequential
         model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
     model.max_seq_length = args.max_seq_length
 
-    #Below are codes for sup
+    # Below are codes for sup
     label2int = {"contradiction": 0, "entailment": 1, "neutral": 2}
     if args.train_data == "nli":
         # Read the AllNLI.tsv.gz file and create the training dataset
@@ -260,7 +276,7 @@ def main():
                 score = float(row['score']) / 5.0 #Normalize score to range 0 ... 1
                 test_samples.append(InputExample(texts=[row['sentence1'], row['sentence2']], label=score))
     
-    model = SentenceTransformer(model_save_path)
+    model = SentenceTransformer(model_save_path) # this becomes the best model
     test_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(test_samples, batch_size=train_batch_size, name='sts-test', main_similarity=SimilarityFunction.COSINE)
     test_evaluator(model, output_path=model_save_path)
 
@@ -268,7 +284,6 @@ def main():
     # Test on unsupervised dataset (mainly STS related dataset)
     eval.eval_nli_unsup(model_save_path, main_similarity=SimilarityFunction.COSINE)
     eval.eval_nli_unsup(model_save_path, main_similarity=SimilarityFunction.COSINE, last2avg=True)
-    eval.corr_visualization(model_save_path)
     
 
 
