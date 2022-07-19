@@ -5,6 +5,8 @@ from scipy import stats
 from datasets import load_dataset
 from tqdm import tqdm
 import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
 
 import torch
 from torch import nn
@@ -31,12 +33,55 @@ class BertForUnsupervisedSimCSE(nn.Module):
         sigmoid_out = self.sigmoid(linear_out)
         return sigmoid_out.squeeze()
 
+# ???
+# class wikiDataset(Dataset):
+#     def __init__(self, example_test):
+#         if example_test:
+#             data = [
+#             "chocolates are my favourite items.",
+#             "The fish dreamed of escaping the fishbowl and into the toilet where he saw his friend go.",
+#             "The person box was packed with jelly many dozens of months later.",
+#             "white chocolates and dark chocolates are favourites for many people.",
+#             "I love chocolates"
+#                 ]
+#         else :
+#             dataset_df = pd.read_csv("Proj-Sentence-Representation/Unsupervised_SimCSE/wiki1m_for_simcse.txt", names=["text"], on_bad_lines='skip')
+#             dataset_df.dropna(inplace=True).reset_index(inplace=True)
+#             data = list(dataset_df["text"].values)
+#         self.data = data
+#     def __len__(self): return len(self.data)
+#     def __getitem__(self,idx) : return self.data[idx]   
+
+def wikiDataset(example_test):
+    if example_test:
+        data = [
+            "chocolates are my favourite items.",
+            "The fish dreamed of escaping the fishbowl and into the toilet where he saw his friend go.",
+            "The person box was packed with jelly many dozens of months later.",
+            "white chocolates and dark chocolates are favourites for many people.",
+            "I love chocolates"
+                ]
+    else :
+        dataset_df = pd.read_csv("Proj-Sentence-Representation/Unsupervised_SimCSE/wiki1m_for_simcse.txt", names=["text"], on_bad_lines='skip')
+        dataset_df.dropna(inplace=True)
+        data = list(dataset_df["text"].values)
+    return data
+  
+def token_embedding(args, dataset, tokenizer):
+    tokens = tokenizer(dataset, truncation=True, padding="max_length", max_length=args.seq_max_length, return_tensors="pt")
+
+    return {
+        'input_ids' : torch.cat([tokens['input_ids'],tokens['input_ids']],dim=1),
+        'token_type_ids' : torch.cat([tokens['token_type_ids'],tokens['token_type_ids']],dim=1),
+        'attention_mask' : torch.cat([tokens['attention_mask'],tokens['attention_mask']],dim=1)
+            }
+    
 def glue_sts(args, model, loss_fn, auxloss_fn, tokenizer):
     seq_max_length = args.seq_max_length
     batch_size = args.batch_size
     set_seed(args.seed)
 
-    train_dataset = load_dataset('glue', 'stsb', split="train")
+    train_dataset = wikiDataset(True)
     validation_dataset = load_dataset('glue', 'stsb', split="validation")
 
     def encode_input(examples):
@@ -47,9 +92,10 @@ def glue_sts(args, model, loss_fn, auxloss_fn, tokenizer):
     def format_output(example):
         return {'labels': example['label']}
 
-    train_dataset = train_dataset.map(encode_input).map(format_output)
-    train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'labels'])
+    # train_dataset = train_dataset.map(encode_input).map(format_output)
+    # train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'labels'])
  
+    train_dataset = token_embedding(args, train_dataset, tokenizer)
     validation_dataset = validation_dataset.map(encode_input).map(format_output)
     validation_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'labels'])
     
@@ -141,6 +187,7 @@ def main():
     parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--seed', default=4885, type=int)
     parser.add_argument('--task', default="glue_sts", type=str)
+    parser.add_argument('--example_test', default="False", type=str)
 
     args = parser.parse_args()
     setattr(args, 'device', f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
@@ -152,6 +199,7 @@ def main():
 
     model_name = args.model_name
     task = args.task
+    args.example_test=True
     
     # Do downstream task
     if task == "glue_sts":
