@@ -44,7 +44,7 @@ def run_sent_eval(sent_eval_params, tasks, model, tokenizer, device):
     se = senteval.engine.SE(sent_eval_params, batcher, prepare)
     for task in tasks:
         result = se.eval(task)
-        print(result)
+        logging.info(result)
 
 
 def main():
@@ -53,7 +53,7 @@ def main():
     parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--seed', default=4885, type=int)
 
-    parser.add_argument('--model_name', default='bert-base-cased', type=str)  # Should be bert base model, including SimCSE models
+    parser.add_argument('--model_name', default='princeton-nlp/sup-simcse-bert-base-uncased', type=str)  # Should be bert base model, including SimCSE models
     parser.add_argument('--model_path', default='', type=str)  # if exist, model_name will be ignored
 
     args = parser.parse_known_args()[0]
