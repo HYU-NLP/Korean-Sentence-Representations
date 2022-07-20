@@ -71,8 +71,15 @@ def main():
     # Hyper parameter --
     model_name = args.model_name
     model_path = args.model_path
-    sent_eval_params = {'task_path': './SentEval/data', 'usepytorch': True, 'kfold': 10}
-    tasks = ['MR']
+
+    sent_eval_params = {  # SimCSE Test mode params
+        'task_path': './SentEval/data',
+        'classifier': {'nhid': 0, 'optim': 'adam', 'batch_size': 64, 'tenacity': 5, 'epoch_size': 4},
+        'usepytorch': True,
+        'kfold': 10
+    }
+
+    tasks = ['STS12', 'STS13', 'STS14', 'STS15', 'STS16', 'STSBenchmark', 'SICKRelatedness']  # TODO Should make it as argument
 
     # Prepare tokenizer, dataset (+ dataloader), model, loss function, optimizer, etc --
     if model_path:
