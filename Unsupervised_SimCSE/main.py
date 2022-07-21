@@ -169,7 +169,7 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
                             best_val_score = val_score
                             best_model = copy.deepcopy(model)
 
-            print(f"\n[Step {step+1}] validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
+                print(f"\n\t validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
     return best_model
 
 def main():
