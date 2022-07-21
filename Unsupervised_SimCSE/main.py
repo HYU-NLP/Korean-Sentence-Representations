@@ -6,6 +6,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
+import os
 
 import torch
 from torch import nn
@@ -23,14 +24,14 @@ class BertForUnsupervisedSimCSE(nn.Module):
         self.hidden_size = BertConfig.from_pretrained(bert_model_name).hidden_size
         self.bert = BertModel.from_pretrained(bert_model_name)
         self.linear = nn.Linear(in_features=self.hidden_size, out_features=num_labels)
-        self.sigmoid = nn.Sigmoid()
+        self.activation = nn.Tanh()
 
     def forward(self, batch):
         input_ids, attention_mask, token_type_ids = batch['input_ids'], batch['attention_mask'], batch['token_type_ids']
         _, pooler_out = self.bert(input_ids, attention_mask, token_type_ids, return_dict=False)
         linear_out = self.linear(pooler_out)
-        sigmoid_out = self.sigmoid(linear_out)
-        return sigmoid_out.squeeze()
+        activation_out = self.activation(linear_out)
+        return activation_out.squeeze()
 
 class wikiDataset(Dataset):
     def __init__(self, example_text, args, tokenizer):
@@ -61,7 +62,7 @@ class wikiDataset(Dataset):
         self.tokens['attention_mask'] = self.tokens['attention_mask'].squeeze()
         return self.tokens
     
-def train_setting(args, model, loss_fn, tokenizer):
+def train_setting(args, tokenizer):
     seq_max_length = args.seq_max_length
     batch_size = args.batch_size
     example_text = args.example_text
@@ -84,10 +85,10 @@ def train_setting(args, model, loss_fn, tokenizer):
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size)
 
-    unsupervised_train(args, train_dataloader, validation_dataloader, model, loss_fn)
+    return train_dataloader, validation_dataloader
 
 def get_score(output, label):
-    score = stats.pearsonr(output, label)[0]
+    score = stats.spearmanr(output, label)[0]
     return score
 
 def cosine_similarity(embeddings1, embeddings2, temperature=0.05):
@@ -109,7 +110,7 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
 
     for t in range(epochs):
         model.train()
-        for i, batch in enumerate(tqdm(train_dataloader)):
+        for step, batch in enumerate(tqdm(train_dataloader)):
             batch = {k: v.to(device) for k, v in batch.items()}
             optimizer.zero_grad()
             output1 = model(batch)
@@ -126,8 +127,8 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
             loss.backward()
             optimizer.step()
             
-        if i % 250 == 0 or i == len(train_dataloader) - 1:
-            print(f'\n{i}th iteration (train loss): ({loss:.4})')
+            if (step + 1) % 250 == 0 or step == len(train_dataloader) - 1:
+                print(f'\nIteration {step + 1} : (train loss): ({loss:.4})')
 
         model.eval()
         with torch.no_grad():
@@ -146,12 +147,12 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
                 val_pred.extend(predict.clone().cpu().tolist())
                 val_label.extend(val_batch['labels'].clone().cpu().tolist())
 
-            val_score = get_score(np.array(val_pred), np.array(val_label))
-            if best_val_score < val_score:
-                best_val_score = val_score
-                best_model = copy.deepcopy(model)
+                val_score = get_score(np.array(val_pred), np.array(val_label))
+                if best_val_score < val_score:
+                    best_val_score = val_score
+                    best_model = copy.deepcopy(model)
 
-            print(f"\n{t}th epoch Validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
+            print(f"\nEpoch {t+1} : validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
 
     return best_model
 
@@ -165,18 +166,18 @@ def main():
     parser.add_argument('--gpu', default=1, type=int)
     parser.add_argument('--seed', default=4885, type=int)
     parser.add_argument('--task', default="glue_sts", type=str)
-    parser.add_argument('--example_text', default=False, type=str)
+    parser.add_argument('--example_text', default=True, type=str)
+    parser.add_argument('--time', default=datetime.now().strftime('%Y%m%d-%H:%M:%S'), type=str)
 
     args = parser.parse_args()
     setattr(args, 'device', f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
-    setattr(args, 'time', datetime.now().strftime('%Y%m%d-%H:%M:%S'))
 
     print('[List of arguments]')
     for a in args.__dict__:
         print(f'{a}: {args.__dict__[a]}')
 
     model_name = args.model_name
-    task = args.task    
+    task = args.task
     
     # Do downstream task
     if task == "glue_sts":
@@ -184,7 +185,9 @@ def main():
         tokenizer = BertTokenizer.from_pretrained(model_name)
         bert_model = BertForUnsupervisedSimCSE(model_name, data_labels_num)
         loss_fn = nn.CrossEntropyLoss()
-        train_setting(args, bert_model, loss_fn, tokenizer)
+        train_dataloader, validation_dataloader = train_setting(args, tokenizer)
+        best_model = unsupervised_train(args, train_dataloader, validation_dataloader, bert_model, loss_fn)
+        best_model.bert.save_pretrained(f"Proj-Sentence-Representation/Unsupervised_SimCSE/model/{args.time}")
     else:
         print(f"There is no such task as {task}")
 
