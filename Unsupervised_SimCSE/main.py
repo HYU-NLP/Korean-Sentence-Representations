@@ -97,18 +97,34 @@ def cosine_similarity(embeddings1, embeddings2, temperature=0.05):
     similarity = torch.matmul(unit_embed1.unsqueeze(-1), unit_embed2.unsqueeze(0)) / temperature
     return similarity
 
+def save_model_config(path, model_name, model_state_dict, model_config_dict):
+    dirname = os.path.dirname(path)
+    os.makedirs(dirname, exist_ok=True)
+    torch.save({
+        'model_name': model_name,
+        'model_state_dict': model_state_dict,
+        'model_config_dict': model_config_dict
+    }, path)
+    
+def model_save_fn(args, pretrained_model):
+    save_model_config(f'checkpoint/{args.model_state_name}', args.model_name, pretrained_model.bert.state_dict(), pretrained_model.config.to_dict())
+    
 def unsupervised_train(args, train_dataloader, validation_dataloader, model, loss_fn):
     device = args.device
     learning_rate = args.lr
     epochs = args.epochs
+    temperature = args.temperature
     optimizer = Adam(model.parameters(), lr=learning_rate)
 
     model.to(device)
     loss_fn.to(device)
     best_val_score = 0
     best_model = None
-
+    
+    print("\n----------\tUnsupervised SimCSE training start\t----------")
+    
     for t in range(epochs):
+        print(f"Epoch {t+1} :")
         model.train()
         for step, batch in enumerate(tqdm(train_dataloader)):
             batch = {k: v.to(device) for k, v in batch.items()}
@@ -116,7 +132,6 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
             output1 = model(batch)
             output2 = model(batch)
 
-            temperature = 0.05
             cos_sim = cosine_similarity(output1, output2, temperature)
             if cos_sim.dim() == 0 : 
                 labels = torch.tensor(0).to(device)
@@ -128,32 +143,32 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
             optimizer.step()
             
             if (step + 1) % 250 == 0 or step == len(train_dataloader) - 1:
-                print(f'\nIteration {step + 1} : (train loss): ({loss:.4})')
+                print(f'\n[Iteration {step + 1}] train loss: ({loss:.4})')
 
-        model.eval()
-        with torch.no_grad():
-            val_loss = 0
-            val_pred = []
-            val_label = []
+                model.eval()
+                with torch.no_grad():
+                    val_loss = 0
+                    val_pred = []
+                    val_label = []
 
-            for _, val_batch in enumerate(tqdm(validation_dataloader)):
-                val_batch = {k: v.to(device) for k, v in val_batch.items()}
-                predict = model(val_batch)
-                
-                if predict.dim() == 0 : 
-                    predict = predict.unsqueeze(dim=0)
-                loss = loss_fn(predict, val_batch['labels'])
-                val_loss += loss.item()
-                val_pred.extend(predict.clone().cpu().tolist())
-                val_label.extend(val_batch['labels'].clone().cpu().tolist())
+                    for _, val_batch in enumerate(tqdm(validation_dataloader)):
+                        val_batch = {k: v.to(device) for k, v in val_batch.items()}
+                        predict = model(val_batch)
+                        
+                        if predict.dim() == 0 : 
+                            predict = predict.unsqueeze(dim=0)
+                        loss = loss_fn(predict, val_batch['labels'])
+                        val_loss += loss.item()
+                        val_pred.extend(predict.clone().cpu().tolist())
+                        val_label.extend(val_batch['labels'].clone().cpu().tolist())
 
-                val_score = get_score(np.array(val_pred), np.array(val_label))
-                if best_val_score < val_score:
-                    best_val_score = val_score
-                    best_model = copy.deepcopy(model)
+                        val_score = get_score(np.array(val_pred), np.array(val_label))
+                        if best_val_score < val_score:
+                            best_val_score = val_score
+                            best_model = copy.deepcopy(model)
 
-            print(f"\nEpoch {t+1} : validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
-
+            print(f"\n[Step {step+1}] validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
+            model_save_fn(best_model)
     return best_model
 
 def main():
@@ -161,12 +176,14 @@ def main():
     parser.add_argument('--model_name', default='bert-base-cased', type=str)
     parser.add_argument('--batch_size', default=16, type=int)
     parser.add_argument('--seq_max_length', default=512, type=int)
-    parser.add_argument('--epochs', default=1, type=int)
+    parser.add_argument('--epochs', default=3, type=int)
     parser.add_argument('--lr', default=5e-5, type=float)
     parser.add_argument('--gpu', default=1, type=int)
     parser.add_argument('--seed', default=4885, type=int)
     parser.add_argument('--task', default="glue_sts", type=str)
-    parser.add_argument('--example_text', default=True, type=str)
+    parser.add_argument('--model_state_name', default='unsupervised_simcse_bert_base.pt', type=str)
+    parser.add_argument('--temperature', default=0.05, type=float)
+    parser.add_argument('--example_text', default=False, type=str)
     parser.add_argument('--time', default=datetime.now().strftime('%Y%m%d-%H:%M:%S'), type=str)
 
     args = parser.parse_args()
@@ -181,13 +198,15 @@ def main():
     
     # Do downstream task
     if task == "glue_sts":
+        model_state_name = args.model_state_name
         data_labels_num = 1
         tokenizer = BertTokenizer.from_pretrained(model_name)
         bert_model = BertForUnsupervisedSimCSE(model_name, data_labels_num)
         loss_fn = nn.CrossEntropyLoss()
-        train_dataloader, validation_dataloader = train_setting(args, tokenizer)
+        
+        train_dataloader, validation_dataloader = train_setting(args, tokenizer)        
         best_model = unsupervised_train(args, train_dataloader, validation_dataloader, bert_model, loss_fn)
-        best_model.bert.save_pretrained(f"Proj-Sentence-Representation/Unsupervised_SimCSE/model/{args.time}")
+        # best_model.bert.save_pretrained(f"Proj-Sentence-Representation/Unsupervised_SimCSE/model/{args.time}")
     else:
         print(f"There is no such task as {task}")
 
