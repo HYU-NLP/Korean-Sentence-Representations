@@ -6,6 +6,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
+import os
 
 import torch
 from torch import nn
@@ -23,53 +24,51 @@ class BertForUnsupervisedSimCSE(nn.Module):
         self.hidden_size = BertConfig.from_pretrained(bert_model_name).hidden_size
         self.bert = BertModel.from_pretrained(bert_model_name)
         self.linear = nn.Linear(in_features=self.hidden_size, out_features=num_labels)
-        self.sigmoid = nn.Sigmoid()
+        self.activation = nn.Tanh()
 
     def forward(self, batch):
         input_ids, attention_mask, token_type_ids = batch['input_ids'], batch['attention_mask'], batch['token_type_ids']
         _, pooler_out = self.bert(input_ids, attention_mask, token_type_ids, return_dict=False)
         linear_out = self.linear(pooler_out)
-        sigmoid_out = self.sigmoid(linear_out)
-        return sigmoid_out.squeeze()
+        activation_out = self.activation(linear_out)
+        return activation_out.squeeze()
 
 class wikiDataset(Dataset):
-    def __init__(self, example_test, args, tokenizer):
-        if example_test:
+    def __init__(self, example_text, args, tokenizer):
+        self.args = args
+        if example_text == True:
             data = [
             "chocolates are my favourite items.",
             "The fish dreamed of escaping the fishbowl and into the toilet where he saw his friend go.",
             "The person box was packed with jelly many dozens of months later.",
-            "white chocolates and dark chocolates are favourites for many people.",
             "I love chocolates"
                 ]
         else :
             dataset_df = pd.read_csv("Proj-Sentence-Representation/Unsupervised_SimCSE/wiki1m_for_simcse.txt", names=["text"], on_bad_lines='skip')
-            dataset_df.dropna(inplace=True).reset_index(inplace=True)
+            dataset_df.dropna(inplace=True)
             data = list(dataset_df["text"].values)
         self.data = data
         self.len = len(data)
-        self.args = args
         self.tokenizer = tokenizer
         
     def __len__(self): 
         return self.len
     
-    # 여기서 텐서를 출력해야지 tokenizer를 거쳐서 tensor가 출력하도록 하면 안됨
+    # 여기서 텐서를 출력해야지
     def __getitem__(self,idx) : 
-        self.tokens = self.tokenizer(self.data, truncation=True, padding="max_length", max_length=self.args.seq_max_length, return_tensors="pt")
-        # return {
-        # 'input_ids' : torch.cat([self.tokens['input_ids'],self.tokens['input_ids']],dim=1),
-        # 'token_type_ids' : torch.cat([self.tokens['token_type_ids'],self.tokens['token_type_ids']],dim=1),
-        # 'attention_mask' : torch.cat([self.tokens['attention_mask'],self.tokens['attention_mask']],dim=1)
-        #     }
+        self.tokens = self.tokenizer(self.data[idx], truncation=True, padding="max_length", max_length=self.args.seq_max_length, return_tensors="pt")
+        self.tokens['input_ids'] = self.tokens['input_ids'].squeeze()
+        self.tokens['token_type_ids'] = self.tokens['token_type_ids'].squeeze()
+        self.tokens['attention_mask'] = self.tokens['attention_mask'].squeeze()
         return self.tokens
     
-def glue_sts(args, model, loss_fn, auxloss_fn, tokenizer):
+def train_setting(args, tokenizer):
     seq_max_length = args.seq_max_length
     batch_size = args.batch_size
+    example_text = args.example_text
     set_seed(args.seed)
 
-    train_dataset = wikiDataset(True, args, tokenizer)
+    train_dataset = wikiDataset(example_text, args, tokenizer)
     validation_dataset = load_dataset('glue', 'stsb', split="validation")
 
     def encode_input(examples):
@@ -79,9 +78,6 @@ def glue_sts(args, model, loss_fn, auxloss_fn, tokenizer):
 
     def format_output(example):
         return {'labels': example['label']}
-
-    # train_dataset = train_dataset.map(encode_input).map(format_output)
-    # train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'labels'])
  
     validation_dataset = validation_dataset.map(encode_input).map(format_output)
     validation_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'labels'])
@@ -89,96 +85,110 @@ def glue_sts(args, model, loss_fn, auxloss_fn, tokenizer):
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size)
 
-    unsupervised_train(args, train_dataloader, validation_dataloader, model, loss_fn, auxloss_fn)
+    return train_dataloader, validation_dataloader
 
 def get_score(output, label):
-    score = stats.pearsonr(output, label)[0]
+    score = stats.spearmanr(output, label)[0]
     return score
 
-def cosine_similarity(embeddings, temperature=0.05):
-    unit_embed = embeddings / torch.norm(embeddings)
-    similarity = torch.matmul(unit_embed, torch.transpose(unit_embed, 0, -1)) / temperature
+def cosine_similarity(embeddings1, embeddings2, temperature=0.05):
+    unit_embed1 = embeddings1 / torch.norm(embeddings1)
+    unit_embed2 = embeddings2 / torch.norm(embeddings2)
+    similarity = torch.matmul(unit_embed1.unsqueeze(-1), unit_embed2.unsqueeze(0)) / temperature
     return similarity
 
-def unsupervised_train(args, train_dataloader, validation_dataloader, model, loss_fn, auxloss_fn):
+def save_model_config(path, model_name, model_state_dict, model_config_dict):
+    dirname = os.path.dirname(path)
+    os.makedirs(dirname, exist_ok=True)
+    torch.save({
+        'model_name': model_name,
+        'model_state_dict': model_state_dict,
+        'model_config_dict': model_config_dict
+    }, path)
+    
+def model_save_fn(args, pretrained_model):
+    if pretrained_model != None : 
+        save_model_config(f'checkpoint/{args.model_state_name}', args.model_name, pretrained_model.bert.state_dict(), pretrained_model.bert.config.to_dict())
+    
+def unsupervised_train(args, train_dataloader, validation_dataloader, model, loss_fn):
     device = args.device
     learning_rate = args.lr
     epochs = args.epochs
+    temperature = args.temperature
     optimizer = Adam(model.parameters(), lr=learning_rate)
 
     model.to(device)
     loss_fn.to(device)
-    auxloss_fn.to(device)
+    val_loss = 0
+    val_score = 0
     best_val_score = 0
     best_model = None
-
+    
+    print("\n----------<\tUnsupervised SimCSE training start\t>----------")
+    
     for t in range(epochs):
+        print(f"Epoch {t+1} :")
         model.train()
-        for i, batch in enumerate(tqdm(train_dataloader)):
-            # batch = {k: v.to(device) for k, v in batch.items()}
+        for step, batch in enumerate(tqdm(train_dataloader)):
+            batch = {k: v.to(device) for k, v in batch.items()}
             optimizer.zero_grad()
-            predict = model(batch)
+            output1 = model(batch)
+            output2 = model(batch)
 
-            temperature = 0.05
-            lmbd = 0
-            batch['input_ids'] = batch['input_ids'].type(torch.float)
-            cos_sim = cosine_similarity(batch['input_ids'], temperature)
-            predict_labels = torch.diag(cos_sim)/torch.sum(cos_sim,-1)
-            loss = loss_fn(predict_labels, batch['labels'])
-            auxloss = auxloss_fn(predict, batch['labels'])
-            total_loss = loss + auxloss * lmbd
-            total_loss.backward()
+            cos_sim = cosine_similarity(output1, output2, temperature)
+            if cos_sim.dim() == 0 : 
+                labels = torch.tensor(0).to(device)
+            else : 
+                labels = torch.arange(cos_sim.size(0)).to(device)
+            
+            loss = loss_fn(cos_sim, labels)
+            loss.backward()
             optimizer.step()
             
-        if i % 1000 == 0 or i == len(train_dataloader) - 1:
-            print(f'\n{i}th iteration (train loss): ({total_loss:.4})')
+            if (step + 1) % 250 == 0 or step == len(train_dataloader) - 1:
+                print(f'\n[Iteration {step + 1}] train loss: ({loss:.4})')
 
-        model.eval()
-        with torch.no_grad():
-            val_loss = 0
-            val_pred = []
-            val_label = []
+                model.eval()
+                with torch.no_grad():
+                    val_pred = []
+                    val_label = []
 
-            for _, val_batch in enumerate(validation_dataloader):
-                val_batch = {k: v.to(device) for k, v in val_batch.items()}
-                predict = model(val_batch)
-                loss = loss_fn(predict, val_batch['labels'])
-                
-                val_batch['input_ids'] = val_batch['input_ids'].type(torch.float)
-                val_cos_sim = cosine_similarity(val_batch['input_ids'], temperature)
-                val_predict_labels = torch.diag(val_cos_sim)/torch.sum(val_cos_sim,-1)
-                loss = loss_fn(val_predict_labels, val_batch['labels'])
-                auxloss = auxloss_fn(predict, batch['labels'])
-                total_loss = loss + auxloss * lmbd
+                    for _, val_batch in enumerate(tqdm(validation_dataloader)):
+                        val_batch = {k: v.to(device) for k, v in val_batch.items()}
+                        predict = model(val_batch)
+                        
+                        if predict.dim() == 0 : 
+                            predict = predict.unsqueeze(dim=0)
+                        loss = loss_fn(predict, val_batch['labels'])
+                        val_loss += loss.item()
+                        val_pred.extend(predict.clone().cpu().tolist())
+                        val_label.extend(val_batch['labels'].clone().cpu().tolist())
 
-                val_loss += total_loss.item()
-                val_pred.extend(predict.clone().cpu().tolist())
-                val_label.extend(val_batch['labels'].clone().cpu().tolist())
+                        val_score = get_score(np.array(val_pred), np.array(val_label))
+                        if best_val_score < val_score:
+                            best_val_score = val_score
+                            best_model = copy.deepcopy(model)
 
-            val_score = get_score(np.array(val_pred), np.array(val_label))
-            if best_val_score < val_score:
-                best_val_score = val_score
-                best_model = copy.deepcopy(model)
-
-            print(f"\n{t}th epoch Validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
-
+            print(f"\n[Step {step+1}] validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
     return best_model
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='bert-base-cased', type=str)
-    parser.add_argument('--batch_size', default=4, type=int)
+    parser.add_argument('--batch_size', default=16, type=int)
     parser.add_argument('--seq_max_length', default=512, type=int)
     parser.add_argument('--epochs', default=1, type=int)
     parser.add_argument('--lr', default=5e-5, type=float)
-    parser.add_argument('--gpu', default=0, type=int)
+    parser.add_argument('--gpu', default=1, type=int)
     parser.add_argument('--seed', default=4885, type=int)
     parser.add_argument('--task', default="glue_sts", type=str)
-    parser.add_argument('--example_test', default="True", type=str)
+    parser.add_argument('--model_state_name', default='unsupervised_simcse_bert_base.pt', type=str)
+    parser.add_argument('--temperature', default=0.05, type=float)
+    parser.add_argument('--example_text', default=False, type=str)
+    parser.add_argument('--time', default=datetime.now().strftime('%Y%m%d-%H:%M:%S'), type=str)
 
     args = parser.parse_args()
     setattr(args, 'device', f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
-    setattr(args, 'time', datetime.now().strftime('%Y%m%d-%H:%M:%S'))
 
     print('[List of arguments]')
     for a in args.__dict__:
@@ -186,7 +196,6 @@ def main():
 
     model_name = args.model_name
     task = args.task
-    args.example_test=True
     
     # Do downstream task
     if task == "glue_sts":
@@ -194,8 +203,11 @@ def main():
         tokenizer = BertTokenizer.from_pretrained(model_name)
         bert_model = BertForUnsupervisedSimCSE(model_name, data_labels_num)
         loss_fn = nn.CrossEntropyLoss()
-        auxloss_fn = nn.MSELoss()
-        glue_sts(args, bert_model, loss_fn, auxloss_fn, tokenizer)
+        
+        train_dataloader, validation_dataloader = train_setting(args, tokenizer)        
+        best_model = unsupervised_train(args, train_dataloader, validation_dataloader, bert_model, loss_fn)
+        model_save_fn(args, best_model)
+        # best_model.bert.save_pretrained(f"Proj-Sentence-Representation/Unsupervised_SimCSE/model/{args.time}")
     else:
         print(f"There is no such task as {task}")
 
