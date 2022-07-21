@@ -80,20 +80,15 @@ def main():
     parser.add_argument("--no_pair", action="store_true", help="If provided, do not pair two training texts") #일단 냅두자
     parser.add_argument("--seed", type=int, required=True, help="Random seed for reproducing experimental results")
     parser.add_argument("--model_name_or_path", type=str, default="bert-base-uncased", help="The model path or model name of pre-trained model")
-    parser.add_argument("--continue_training", action="store_true", help="Whether to continue training or just from BERT") #sup-unsup, joint-unsup일때만 on
     parser.add_argument("--model_save_path", type=str, default=None, help="Custom output dir")
     parser.add_argument("--force_del", action="store_true", help="Delete the existing save_path and do not report an error")
     
-    parser.add_argument("--use_apex_amp", action="store_true", help="Use apex amp or not")
-    parser.add_argument("--apex_amp_opt_level", type=str, default=None, help="The opt_level argument in apex amp")
-    
-    parser.add_argument("--batch_size", type=int, default=16, help="Training mini-batch size")
-    parser.add_argument("--num_epochs", type=int, default=1, help="Number of training epochs")
+    parser.add_argument("--batch_size", type=int, default=96, help="Training mini-batch size")
+    parser.add_argument("--num_epochs", type=int, default=1, help="Number of training epochs") # if continue_training is on, use default num_epochs
     parser.add_argument("--learning_rate", type=float, default=2e-5, help="The learning rate")
     parser.add_argument("--evaluation_steps", type=int, default=1000, help="The steps between every evaluations")
     parser.add_argument("--max_seq_length", type=int, default=128, help="The max sequence length")
     parser.add_argument("--loss_rate_scheduler", type=int, default=0, help="The loss rate scheduler, default strategy 0 (i.e. do nothing, see AdvCLSoftmaxLoss for more details)")
-    parser.add_argument("--no_dropout", action="store_true", help="Add no dropout when training")
     
     parser.add_argument("--concatenation_sent_max_square", action="store_true", help="Concat max-square features of two text representations when training classification")
 
@@ -110,16 +105,10 @@ def main():
     parser.add_argument("--cl_type", type=str, default="nt_xent", help="The contrastive loss type, nt_xent or cosine")
     parser.add_argument("--temperature", type=float, default=0.5, help="The temperature for contrastive loss")
     parser.add_argument("--mapping_to_small_space", type=int, default=None, help="Whether to mapping sentence representations to a low dimension space (similar to SimCLR) and give the dimension")
-    parser.add_argument("--add_contrastive_predictor", type=str, default=None, help="Whether to use a predictor on one side (similar to SimSiam) and give the projection added to which side (normal or adv)")
-    parser.add_argument("--add_projection", action="store_true", help="Add projection layer before predictor, only be considered when add_contrastive_predictor is not None")
-    parser.add_argument("--projection_norm_type", type=str, default=None, help="The norm type used in the projection layer beforn predictor")
-    parser.add_argument("--projection_hidden_dim", type=int, default=None, help="The hidden dimension of the projection or predictor MLP")
-    parser.add_argument("--projection_use_batch_norm", action="store_true", help="Whether to use batch normalization in the hidden layer of MLP")
-    parser.add_argument("--contrastive_loss_stop_grad", type=str, default=None, help="Use stop gradient to contrastive loss (and which mode to apply) or not")
     
     # only for base model?
-    parser.add_argument("--da_final_1", type=str, default=None, help="The final 5 data augmentation strategies for view1 (none, shuffle, token_cutoff, feature_cutoff, dropout, span)")
-    parser.add_argument("--da_final_2", type=str, default=None, help="The final 5 data augmentation strategies for view2 (none, shuffle, token_cutoff, feature_cutoff, dropout, span)")
+    parser.add_argument("--da_final_1", type=str, default=None, help="The final 4 data augmentation strategies for view1 (none, shuffle, token_cutoff, feature_cutoff, dropout)")
+    parser.add_argument("--da_final_2", type=str, default=None, help="The final 4 data augmentation strategies for view2 (none, shuffle, token_cutoff, feature_cutoff, dropout)")
     parser.add_argument("--cutoff_rate_final_1", type=float, default=None, help="The final cutoff/dropout rate for view1")
     parser.add_argument("--cutoff_rate_final_2", type=float, default=None, help="The final cutoff/dropout rate for view2")
     parser.add_argument("--patience", default=None, type=int, help="The patience for early stop")
@@ -131,6 +120,25 @@ def main():
     args = parser.parse_args()
     setattr(args, 'device', f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
     setattr(args, 'time', datetime.datetime.now().strftime('%Y%m%d-%H:%M:%S'))
+
+    if args.train_way == "unsup":
+        setattr(args, '--no_dropout', True)
+        setattr(args, '--no_pair', True)
+        
+    elif args.train_way == "joint":
+        setattr(args, '--no_dropout', False)
+        
+    elif args.train_way == "sup-unsup":
+        # we have to have the sup model first
+        setattr(args, '--no_dropout', False)
+        setattr(args, '--continue_training', True)
+
+    elif args.train_way == "joint-unsup":
+        # we have to have the joint model first
+
+        setattr(args, '--no_dropout', False)
+        setattr(args, '--continue_training', True)
+
     ################# ADDED #################
 
     logging.info(f"Training arguments: {args.__dict__}")
@@ -263,8 +271,7 @@ def main():
               evaluation_steps=args.evaluation_steps,
               warmup_steps=warmup_steps,
               output_path=model_save_path,
-              use_apex_amp=args.use_apex_amp,
-              apex_amp_opt_level = args.apex_amp_opt_level,
+              # we could make use of apex
               early_stop_patience=args.patience)
 
     # Test on STS Benchmark

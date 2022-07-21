@@ -266,6 +266,10 @@ class Transformer(nn.Module):
         return Transformer(model_name_or_path=input_path, **config)
 
 
+class Consert(nn.Module):
+    
+
+
 
 
 
