@@ -107,7 +107,8 @@ def save_model_config(path, model_name, model_state_dict, model_config_dict):
     }, path)
     
 def model_save_fn(args, pretrained_model):
-    save_model_config(f'checkpoint/{args.model_state_name}', args.model_name, pretrained_model.bert.state_dict(), pretrained_model.config.to_dict())
+    if pretrained_model != None : 
+        save_model_config(f'checkpoint/{args.model_state_name}', args.model_name, pretrained_model.bert.state_dict(), pretrained_model.bert.config.to_dict())
     
 def unsupervised_train(args, train_dataloader, validation_dataloader, model, loss_fn):
     device = args.device
@@ -118,10 +119,12 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
 
     model.to(device)
     loss_fn.to(device)
+    val_loss = 0
+    val_score = 0
     best_val_score = 0
     best_model = None
     
-    print("\n----------\tUnsupervised SimCSE training start\t----------")
+    print("\n----------<\tUnsupervised SimCSE training start\t>----------")
     
     for t in range(epochs):
         print(f"Epoch {t+1} :")
@@ -147,7 +150,6 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
 
                 model.eval()
                 with torch.no_grad():
-                    val_loss = 0
                     val_pred = []
                     val_label = []
 
@@ -168,7 +170,6 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
                             best_model = copy.deepcopy(model)
 
             print(f"\n[Step {step+1}] validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
-            model_save_fn(best_model)
     return best_model
 
 def main():
@@ -176,7 +177,7 @@ def main():
     parser.add_argument('--model_name', default='bert-base-cased', type=str)
     parser.add_argument('--batch_size', default=16, type=int)
     parser.add_argument('--seq_max_length', default=512, type=int)
-    parser.add_argument('--epochs', default=3, type=int)
+    parser.add_argument('--epochs', default=1, type=int)
     parser.add_argument('--lr', default=5e-5, type=float)
     parser.add_argument('--gpu', default=1, type=int)
     parser.add_argument('--seed', default=4885, type=int)
@@ -198,7 +199,6 @@ def main():
     
     # Do downstream task
     if task == "glue_sts":
-        model_state_name = args.model_state_name
         data_labels_num = 1
         tokenizer = BertTokenizer.from_pretrained(model_name)
         bert_model = BertForUnsupervisedSimCSE(model_name, data_labels_num)
@@ -206,6 +206,7 @@ def main():
         
         train_dataloader, validation_dataloader = train_setting(args, tokenizer)        
         best_model = unsupervised_train(args, train_dataloader, validation_dataloader, bert_model, loss_fn)
+        model_save_fn(args, best_model)
         # best_model.bert.save_pretrained(f"Proj-Sentence-Representation/Unsupervised_SimCSE/model/{args.time}")
     else:
         print(f"There is no such task as {task}")
