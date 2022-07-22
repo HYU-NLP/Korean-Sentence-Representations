@@ -135,8 +135,7 @@ def save_model_config(path, model_name, model_state_dict, model_config_dict):
 def model_save_fn(args, pretrained_model):
     if pretrained_model != None : 
         save_model_config(f'checkpoint/{args.model_state_name}', args.model_name, pretrained_model.bert.state_dict(), pretrained_model.bert.config.to_dict())
-
-
+    
 def evaluate_model (device, dataloader, model, fn_loss, fn_score):
     model.to(device)
     fn_loss.to(device)
@@ -160,7 +159,7 @@ def evaluate_model (device, dataloader, model, fn_loss, fn_score):
     eval_score = fn_score(eval_pred, eval_label) 
     return eval_score, eval_loss
 
-def pretrain_model(epochs, device, train_dataloader, validation_dataloader, model, fn_loss, optimizer, fn_score, model_save_fn):
+def pretrain_model(epochs, device, train_dataloader, validation_dataloader, model, fn_loss, optimizer, fn_score, model_save_fn, args):
     model.to(device)
     fn_loss.to(device)
 
@@ -194,7 +193,7 @@ def pretrain_model(epochs, device, train_dataloader, validation_dataloader, mode
                     best_val_score = val_score
 
                 print(f"\n{epoch}th epoch Validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
-            model_save_fn(best_model)
+            model_save_fn(args, best_model)
     return best_model
 
 
@@ -280,7 +279,7 @@ def main():
         #     # return accuracy_score(label, pred) #np.argmax*pred , axis=1
 
 
-        best_model = pretrain_model(epochs, device, train_dataloader, validation_dataloader, model, fn_loss, optimizer, fn_score, model_save_fn)
+        best_model = pretrain_model(epochs, device, train_dataloader, validation_dataloader, model, fn_loss, optimizer, fn_score, model_save_fn, args)
 
         #evaluate sent eval transfer task (best model)
         #evaludate sent eval sts task (best model)
