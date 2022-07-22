@@ -16,9 +16,9 @@ from senteval import utils
 from senteval.binary import CREval, MREval, MPQAEval, SUBJEval
 from senteval.snli import SNLIEval
 from senteval.trec import TRECEval
-from senteval.sick import SICKRelatednessEval, SICKEntailmentEval
+from senteval.sick import SICKEntailmentEval, SICKEval
 from senteval.mrpc import MRPCEval
-from senteval.sts import STS12Eval, STS13Eval, STS14Eval, STS15Eval, STS16Eval, STSBenchmarkEval
+from senteval.sts import STS12Eval, STS13Eval, STS14Eval, STS15Eval, STS16Eval, STSBenchmarkEval, SICKRelatednessEval, STSBenchmarkFinetune
 from senteval.sst import SSTEval
 from senteval.rank import ImageCaptionRetrievalEval
 from senteval.probing import *
@@ -51,7 +51,7 @@ class SE(object):
                            'STS14', 'STS15', 'STS16',
                            'Length', 'WordContent', 'Depth', 'TopConstituents',
                            'BigramShift', 'Tense', 'SubjNumber', 'ObjNumber',
-                           'OddManOut', 'CoordinationInversion']
+                           'OddManOut', 'CoordinationInversion', 'SICKRelatedness-finetune', 'STSBenchmark-finetune', 'STSBenchmark-fix']
 
     def eval(self, name):
         # evaluate on evaluation [name], either takes string or list of strings
@@ -83,6 +83,12 @@ class SE(object):
             self.evaluation = SICKRelatednessEval(tpath + '/downstream/SICK', seed=self.params.seed)
         elif name == 'STSBenchmark':
             self.evaluation = STSBenchmarkEval(tpath + '/downstream/STS/STSBenchmark', seed=self.params.seed)
+        elif name == 'STSBenchmark-fix':
+            self.evaluation = STSBenchmarkEval(tpath + '/downstream/STS/STSBenchmark-fix', seed=self.params.seed)
+        elif name == 'STSBenchmark-finetune':
+            self.evaluation = STSBenchmarkFinetune(tpath + '/downstream/STS/STSBenchmark', seed=self.params.seed)
+        elif name == 'SICKRelatedness-finetune':
+            self.evaluation = SICKEval(tpath + '/downstream/SICK', seed=self.params.seed)
         elif name == 'SICKEntailment':
             self.evaluation = SICKEntailmentEval(tpath + '/downstream/SICK', seed=self.params.seed)
         elif name == 'SNLI':

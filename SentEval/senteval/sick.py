@@ -21,8 +21,7 @@ from scipy.stats import pearsonr, spearmanr
 from senteval.tools.relatedness import RelatednessPytorch
 from senteval.tools.validation import SplitClassifier
 
-
-class SICKRelatednessEval(object):
+class SICKEval(object):
     def __init__(self, task_path, seed=1111):
         logging.debug('***** Transfer task : SICK-Relatedness*****\n\n')
         self.seed = seed
@@ -106,18 +105,18 @@ class SICKRelatednessEval(object):
                                  devscores=self.sick_data['dev']['y'],
                                  config=config)
 
-        devpr, yhat = clf.run()
+        devspr, yhat = clf.run()
 
         pr = pearsonr(yhat, self.sick_data['test']['y'])[0]
         sr = spearmanr(yhat, self.sick_data['test']['y'])[0]
         pr = 0 if pr != pr else pr
         sr = 0 if sr != sr else sr
         se = mean_squared_error(yhat, self.sick_data['test']['y'])
-        logging.debug('Dev : Pearson {0}'.format(devpr))
+        logging.debug('Dev : Spearman {0}'.format(devspr))
         logging.debug('Test : Pearson {0} Spearman {1} MSE {2} \
                        for SICK Relatedness\n'.format(pr, sr, se))
 
-        return {'devpearson': devpr, 'pearson': pr, 'spearman': sr, 'mse': se,
+        return {'devspearman': devspr, 'pearson': pr, 'spearman': sr, 'mse': se,
                 'yhat': yhat, 'ndev': len(devA), 'ntest': len(testA)}
 
     def encode_labels(self, labels, nclass=5):
@@ -134,7 +133,7 @@ class SICKRelatednessEval(object):
         return Y
 
 
-class SICKEntailmentEval(SICKRelatednessEval):
+class SICKEntailmentEval(SICKEval):
     def __init__(self, task_path, seed=1111):
         logging.debug('***** Transfer task : SICK-Entailment*****\n\n')
         self.seed = seed
