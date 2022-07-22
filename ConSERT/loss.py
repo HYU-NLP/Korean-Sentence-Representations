@@ -135,7 +135,7 @@ def distance_to_center_mse_loss(x: torch.Tensor):
     to_center_dist = torch.norm(x - center, p=2, dim=-1)
     return to_center_dist.pow(2).mean()
     
-class AdvCLSoftmaxLoss(nn.Module):
+class myLoss(nn.Module):
     """
     :param model: SentenceTransformer model
     :param sentence_embedding_dimension: Dimension of your sentence embeddings
@@ -168,13 +168,6 @@ class AdvCLSoftmaxLoss(nn.Module):
                  data_aug_strategy2: str =None,
 
                  use_contrastive_loss: bool = False,                    # 是否加对比损失
-                 data_augmentation_strategy: str= None,               
-                 cutoff_direction: str = None,                          # 如果使用cutoff作为数据增强方法，该参数表示cutoff是对行进行还是对列进行
-                 cutoff_rate: float = None,                             # 如果使用cutoff作为数据增强方法，该参数表示cutoff的比率（0到1之间，类似dropout）
-                 data_augmentation_strategy_final_1: str = None,        # 最终的五种数据增强方法（none、shuffle、token-cutoff、feature-cutoff、dropout），用于生成第一个view
-                 data_augmentation_strategy_final_2: str = None,        # 最终的五种数据增强方法（none、shuffle、token-cutoff、feature-cutoff、dropout），用于生成第二个view
-                 cutoff_rate_final_1: float = None,                           # 与第一个view对应的cutoff/dropout的rate
-                 cutoff_rate_final_2: float = None,                           # 与第二个view对应的cutoff/dropout的rate
                  contrastive_loss_only: bool = False,                   # 只使用对比损失进行（无监督）训练
                  no_pair: bool = False,                                 # 不使用配对的语料，避免先验信息
                  contrastive_loss_rate: float = 1.0,                    # 对比损失的系数
@@ -182,27 +175,15 @@ class AdvCLSoftmaxLoss(nn.Module):
                  do_hidden_normalization: bool = True,                  # 进行对比损失之前，是否对句子表示做正则化
                  temperature: float = 1.0,                              # 对比损失中的温度系数，仅对于交叉熵损失有效
                 ):
-        super(AdvCLSoftmaxLoss, self).__init__()
+        super(myLoss, self).__init__()
         self.model = model
         self.num_labels = num_labels
         self.args= args
         self.loss_rate_scheduler = loss_rate_scheduler
-        
         self.data_aug_strategy1 = data_aug_strategy1
         self.data_aug_strategy2 = data_aug_strategy2
 
         self.use_contrastive_loss = use_contrastive_loss
-        assert data_augmentation_strategy in ("none", "adv", "meanmax", "shuffle", "cutoff", "shuffle-cutoff", "shuffle+cutoff", "shuffle_embeddings")
-        if data_augmentation_strategy == "cutoff":
-            assert cutoff_direction is not None and cutoff_direction in ("row", "column", "random")
-            assert cutoff_rate is not None and 0.0 < cutoff_rate < 1.0
-            self.cutoff_direction = cutoff_direction
-            self.cutoff_rate = cutoff_rate
-        self.data_augmentation_strategy = data_augmentation_strategy
-        self.data_augmentation_strategy_final_1 = data_augmentation_strategy_final_1
-        self.data_augmentation_strategy_final_2 = data_augmentation_strategy_final_2
-        self.cutoff_rate_final_1 = cutoff_rate_final_1
-        self.cutoff_rate_final_2 = cutoff_rate_final_2
         self.contrastive_loss_only = contrastive_loss_only
         self.no_pair = no_pair
         if no_pair:
@@ -255,7 +236,7 @@ class AdvCLSoftmaxLoss(nn.Module):
         loss_a = torch.nn.functional.cross_entropy(torch.cat([logits_ab, logits_aa], dim=1), labels)  #??? labels랑 비교?? 이게정답? 
         loss_b = torch.nn.functional.cross_entropy(torch.cat([logits_ba, logits_bb], dim=1), labels)  
         loss = loss_a + loss_b
-        # still confusing whether to divie 2 or not
+        # still confusing whether or not to divide 2
         # loss /= 2
         return loss
 
@@ -304,7 +285,8 @@ class AdvCLSoftmaxLoss(nn.Module):
             adv_rate, cl_rate = LOSS_RATE_SCHEDULERS[self.loss_rate_scheduler](cur_step, total_step)
             
             # data augmentation generation
-            # 전체적인 구조 수정
+            ############## modified ##############
+            #아래 전체가 data aug를 위한부분인데, crossentropy쪽 rep 생성은 다른쪽에서 하는게 좀더 깔끔?
             if self.data_aug_strategy1 == "None":
                 if self.data_aug_strategy2 == "None": # (none, none)
                     pass
@@ -313,7 +295,8 @@ class AdvCLSoftmaxLoss(nn.Module):
                     if not self.no_pair:
                         sentence_feature_a, sentence_feature_b = sentence_features
                     else:
-                        sentence_feature_a = sentence_features[0] # sentenc_feature_b = None
+                        sentence_feature_a = sentence_features[0] 
+                        # sentenc_feature_b = None
 
                     ori_feature_keys = set(sentence_feature_a.keys())  # record the keys since the features will be updated
 
@@ -361,8 +344,10 @@ class AdvCLSoftmaxLoss(nn.Module):
                         sentence_feature_b = {k: v for k, v in sentence_feature_b.items() if k in ori_feature_keys}
                     else:
                         rep_b_view1 = None
-
-                    self.model[0].auto_model.set_flag(f"data_aug_{self.data_aug_strategy2}", True)
+                    #flag에 feature cutoff는 없고 cutoff만 있음
+                    self.model[0].auto_model.set_flag("data_aug_cutoff", True)
+                    self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "column")
+                    self.model[0].auto_model.set_flag("data_aug_cutoff.rate", self.args.cutoff_rate)
                     rep_a_view2 = self.model(sentence_feature_a)['sentence_embedding']
                     if not self.no_pair:
                         self.model[0].auto_model.set_flag(f"data_aug_{self.data_aug_strategy2}", True)
@@ -379,7 +364,7 @@ class AdvCLSoftmaxLoss(nn.Module):
             elif self.data_aug_strategy1 == "feature_cutoff":
                 if self.data_aug_strategy2 == "feature_cutoff": # (feature_cutoff, feature_cutoff)
                     pass
-                
+            ############## modified ##############    
 
 
 
@@ -464,24 +449,13 @@ class AdvCLSoftmaxLoss(nn.Module):
             
             if self.args.train_way == "joint" or self.args.train_way == "sup":
                 match_output_n_n = self._reps_to_output(rep_a, rep_b)
-                # match_outpput_n_n = [96, 3]    3 means num of classes (entail, contra, neutral)
+                # match_outpput_n_n = [batch size, 3]    3 means num of classes (entail, contra, neutral)
                 loss_fct = nn.CrossEntropyLoss()
                 loss_n_n = loss_fct(match_output_n_n, labels.view(-1))
                 final_loss += loss_n_n * adv_rate
                 
             if self.args.train_way == "unsup" or self.args.train_way == "joint":
-                # if self.data_augmentation_strategy_final_1 is None:
-                #     if self.data_augmentation_strategy == "none":
-                #         rep_a_view1, rep_b_view1 = rep_a, rep_b
-                #         rep_a_view2, rep_b_view2 = rep_a, rep_b
-                #     elif self.data_augmentation_strategy == "shuffle":
-                #         rep_a_view1, rep_b_view1 = rep_a, rep_b
-                #         rep_a_view2, rep_b_view2 = rep_a_shuffle, rep_b_shuffle
-                #     elif self.data_augmentation_strategy == "cutoff":
-                #         rep_a_view1, rep_b_view1 = rep_a, rep_b
-                #         rep_a_view2, rep_b_view2 = rep_a_cutoff, rep_b_cutoff
-                contrastive_loss_a = self._contrastive_loss_forward(rep_a_view1 , rep_a_view2, hidden_norm=self.do_hidden_normalization, temperature=self.temperature)
-                #rep_a_view1 : cutoff,  rep_a_view2 : shuffle
+                contrastive_loss_a = self._contrastive_loss_forward(rep_a_view1 , rep_a_view2, hidden_norm=self.do_hidden_normalization, temperature=self.temperature) 
                 if not self.no_pair: #recheck
                     contrastive_loss_b = self._contrastive_loss_forward(rep_b_view1, rep_b_view2, hidden_norm=self.do_hidden_normalization, temperature=self.temperature)
                 else:

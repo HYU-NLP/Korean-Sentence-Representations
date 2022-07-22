@@ -5,6 +5,7 @@ from torch import divide, nn, Tensor
 from typing import Union, Tuple, List, Iterable, Dict, Set
 from ..SentenceTransformer import SentenceTransformer
 import logging
+import copy
 
 # for masking
 LARGE_NUM = 1e9
@@ -136,44 +137,17 @@ def distance_to_center_mse_loss(x: torch.Tensor):
     return to_center_dist.pow(2).mean()
     
 class myLoss(nn.Module):
-    """
-    :param model: SentenceTransformer model
-    :param sentence_embedding_dimension: Dimension of your sentence embeddings
-    :param num_labels: Number of different labels
-    :param concatenation_sent_rep: Concatenate vectors u,v for the softmax classifier?
-    :param concatenation_sent_difference: Add abs(u-v) for the softmax classifier?
-    :param concatenation_sent_multiplication: Add u*v for the softmax classifier?
-
-    train_loss = losses.AdvCLSoftmaxLoss(model=model, sentence_embedding_dimension=model.get_sentence_embedding_dimension(), 
-                num_labels=len(label2int), concatenation_sent_max_square=args.concatenation_sent_max_square, use_contrastive_loss=args.add_cl, 
-                contrastive_loss_type=args.cl_type, contrastive_loss_rate=args.cl_rate, temperature=args.temperature, 
-                contrastive_loss_stop_grad=args.contrastive_loss_stop_grad, mapping_to_small_space=args.mapping_to_small_space, 
-                add_contrastive_predictor=args.add_contrastive_predictor, projection_hidden_dim=args.projection_hidden_dim, 
-                projection_use_batch_norm=args.projection_use_batch_norm, add_projection=args.add_projection, 
-                projection_norm_type=args.projection_norm_type, contrastive_loss_only=args.cl_loss_only, 
-                data_augmentation_strategy=args.data_augmentation_strategy, cutoff_direction=args.cutoff_direction, 
-                cutoff_rate=args.cutoff_rate, no_pair=args.no_pair, regularization_term_rate=args.regularization_term_rate, 
-                loss_rate_scheduler=args.loss_rate_scheduler, data_augmentation_strategy_final_1=args.da_final_1, data_augmentation_strategy_final_2=args.da_final_2, 
-                cutoff_rate_final_1=args.cutoff_rate_final_1, cutoff_rate_final_2=args.cutoff_rate_final_2)
-    """
     def __init__(self,
                 args,
                  model: SentenceTransformer,
                  sentence_embedding_dimension: int,
                  num_labels: int,
-                 
-                 loss_rate_scheduler: int = 0,                          # 用来控制对比损失和主任务损失相对大小
-                 
+                 loss_rate_scheduler: int = 0,     # Contrast control used to loss and the main job losses relative size.
                  data_aug_strategy1: str =None,
                  data_aug_strategy2: str =None,
-
-                 use_contrastive_loss: bool = False,                    # 是否加对比损失
-                 contrastive_loss_only: bool = False,                   # 只使用对比损失进行（无监督）训练
-                 no_pair: bool = False,                                 # 不使用配对的语料，避免先验信息
-                 contrastive_loss_rate: float = 1.0,                    # 对比损失的系数
-                 regularization_term_rate: float = 0.0,                 # 正则化项（同一个batch内分布的方差）所占的比率大小
-                 do_hidden_normalization: bool = True,                  # 进行对比损失之前，是否对句子表示做正则化
-                 temperature: float = 1.0,                              # 对比损失中的温度系数，仅对于交叉熵损失有效
+                 contrastive_loss_rate: float = 1.0,                    
+                 regularization_term_rate: float = 0.0,  # The proportional size of a term, ie the variance of a distribution within the same batch
+                 temperature: float = 1.0,                              
                 ):
         super(myLoss, self).__init__()
         self.model = model
@@ -183,15 +157,10 @@ class myLoss(nn.Module):
         self.data_aug_strategy1 = data_aug_strategy1
         self.data_aug_strategy2 = data_aug_strategy2
 
-        self.use_contrastive_loss = use_contrastive_loss
-        self.contrastive_loss_only = contrastive_loss_only
-        self.no_pair = no_pair
-        if no_pair:
-            assert use_contrastive_loss and contrastive_loss_only
-        
+        self.contrastive_loss = args.contrastive_loss
+        self.no_pair = args.no_pair
         self.contrastive_loss_rate = contrastive_loss_rate
         self.regularization_term_rate = regularization_term_rate
-        self.do_hidden_normalization = do_hidden_normalization
         self.temperature = temperature
         
         # Wf +b
@@ -207,19 +176,19 @@ class myLoss(nn.Module):
     def _contrastive_loss_forward(self,
                                   hidden1: torch.Tensor,
                                   hidden2: torch.Tensor,
-                                  hidden_norm: bool = True,
                                   temperature: float = 1.0):
         #this is from SimCLR paper 
         batch_size, hidden_dim = hidden1.shape
         # hidden1 = [96, 768], which means [batch size, dim]
         
-        if hidden_norm:
-            hidden1 = torch.nn.functional.normalize(hidden1, p=2, dim=-1)
-            hidden2 = torch.nn.functional.normalize(hidden2, p=2, dim=-1)
+        # why normalize?
+        hidden1 = torch.nn.functional.normalize(hidden1, p=2, dim=-1)
+        hidden2 = torch.nn.functional.normalize(hidden2, p=2, dim=-1)
+
 
         hidden1_large = hidden1
         hidden2_large = hidden2
-        #both are [96,768]
+        #both are [batch size, dim]  
 
         labels = torch.arange(0, batch_size).to(device=hidden1.device)
         #labels = [0,1,2,3,4, ... , 94,95]
@@ -243,6 +212,8 @@ class myLoss(nn.Module):
     def _recover_to_origin_keys(self, sentence_feature: Dict[str, Tensor], ori_keys: Set[str]):
         return {k: v for k, v in sentence_feature.items() if k in ori_keys}
     
+
+    #this could be the solution
     def _data_aug(self, sentence_feature, name, ori_keys, cutoff_rate):
         assert name in ("none", "shuffle", "token_cutoff", "feature_cutoff", "dropout")
         sentence_feature = self._recover_to_origin_keys(sentence_feature, ori_keys)
@@ -263,11 +234,11 @@ class myLoss(nn.Module):
             self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "random")
             self.model[0].auto_model.set_flag("data_aug_cutoff.rate", cutoff_rate)
         rep = self.model(sentence_feature)["sentence_embedding"]
-        return rep # sentence representation이구나
+        return rep
     
     def forward(self, sentence_features: Iterable[Dict[str, Tensor]], labels: Tensor):
         
-        if not self.use_contrastive_loss:  # for sup-unsup, need to train sup first
+        if not self.contrastive_loss:  # for sup-unsup, need to train sup first
             reps = [self.model(sentence_feature)['sentence_embedding'] for sentence_feature in sentence_features]
             rep_a, rep_b = reps
 
@@ -284,9 +255,32 @@ class myLoss(nn.Module):
             total_step, cur_step = self.model.num_steps_total, self.model.global_step
             adv_rate, cl_rate = LOSS_RATE_SCHEDULERS[self.loss_rate_scheduler](cur_step, total_step)
             
-            # data augmentation generation
+            
             ############## modified ##############
-            #아래 전체가 data aug를 위한부분인데, crossentropy쪽 rep 생성은 다른쪽에서 하는게 좀더 깔끔?
+            # making crossentropy input
+            # deepcopy,, 왜왜왜ㅙㅇ 아래도 sentence_feature_a 2번씩 쓰는데 이런문제가 왜 안생기지?;
+            # 이러한 문제를 방지하기위해서 key reset을 하는거 같으넫,, 아닌가, 차피 forwarding이 된 상태니까
+            if self.args.train_way == "joint" or "sup":
+                aux_sentence_features = copy.deepcopy(sentence_features)
+                #this causes CUDA OOM. should come up with other solutions
+                if not self.no_pair:
+                    sentence_feature_a, sentence_feature_b = aux_sentence_features
+                else:
+                    sentence_feature_a = aux_sentence_features[0] 
+                    # sentenc_feature_b = None
+
+                ori_feature_keys = set(sentence_feature_a.keys())  # record the keys since the features will be updated
+                rep_a= self.model(sentence_feature_a)['sentence_embedding'] # since self.data_aug_strategy1 == None
+                # ['input_ids', 'token_type_ids', 'attention_mask', 'token_embeddings', 'cls_token_embeddings', 'pad_max_tokens', 'pad_mean_tokens', 'sentence_embedding']
+                sentence_feature_a = {k: v for k, v in sentence_feature_a.items() if k in ori_feature_keys}
+
+                if not self.no_pair:
+                    rep_b= self.model(sentence_feature_b)['sentence_embedding']
+                    sentence_feature_b = {k: v for k, v in sentence_feature_b.items() if k in ori_feature_keys}
+                else:
+                    rep_b = None
+
+            # data augmentation generation
             if self.data_aug_strategy1 == "None":
                 if self.data_aug_strategy2 == "None": # (none, none)
                     pass
@@ -299,7 +293,6 @@ class myLoss(nn.Module):
                         # sentenc_feature_b = None
 
                     ori_feature_keys = set(sentence_feature_a.keys())  # record the keys since the features will be updated
-
                     rep_a_view1 = self.model(sentence_feature_a)['sentence_embedding'] # since self.data_aug_strategy1 == None
                     sentence_feature_a = {k: v for k, v in sentence_feature_a.items() if k in ori_feature_keys}
                     if not self.no_pair:
@@ -335,22 +328,24 @@ class myLoss(nn.Module):
 
                     ori_feature_keys = set(sentence_feature_a.keys())  # record the keys since the features will be updated
 
-                    self.model[0].auto_model.set_flag(f"data_aug_{self.data_aug_strategy1}", True)
+                    self.model[0].auto_model.set_flag("data_aug_shuffle", True)
                     rep_a_view1 = self.model(sentence_feature_a)['sentence_embedding']
                     sentence_feature_a = {k: v for k, v in sentence_feature_a.items() if k in ori_feature_keys}
                     if not self.no_pair:
-                        self.model[0].auto_model.set_flag(f"data_aug_{self.data_aug_strategy1}", True)
+                        self.model[0].auto_model.set_flag("data_aug_shuffle", True)
                         rep_b_view1 = self.model(sentence_feature_b)['sentence_embedding']
                         sentence_feature_b = {k: v for k, v in sentence_feature_b.items() if k in ori_feature_keys}
                     else:
                         rep_b_view1 = None
-                    #flag에 feature cutoff는 없고 cutoff만 있음
+                    #flag에 feature_cutoff는 없고 cutoff만 있음
                     self.model[0].auto_model.set_flag("data_aug_cutoff", True)
                     self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "column")
                     self.model[0].auto_model.set_flag("data_aug_cutoff.rate", self.args.cutoff_rate)
                     rep_a_view2 = self.model(sentence_feature_a)['sentence_embedding']
                     if not self.no_pair:
-                        self.model[0].auto_model.set_flag(f"data_aug_{self.data_aug_strategy2}", True)
+                        self.model[0].auto_model.set_flag(f"data_aug_cutoff", True)
+                        self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "column")
+                        self.model[0].auto_model.set_flag("data_aug_cutoff.rate", self.args.cutoff_rate)
                         rep_b_view2 = self.model(sentence_feature_b)['sentence_embedding']
                     else:
                         rep_b_view2 = None
@@ -366,98 +361,20 @@ class myLoss(nn.Module):
                     pass
             ############## modified ##############    
 
-
-
-            # if self.data_augmentation_strategy_final_1 is None: # final 과 그냥 strategy차이는?
-            #     if self.use_contrastive_loss and self.data_augmentation_strategy == "shuffle": 
-            #         if not self.no_pair:
-            #             sentence_feature_a, sentence_feature_b = sentence_features
-            #         else:
-            #             sentence_feature_a = sentence_features[0]
-
-            #         ori_feature_keys = set(sentence_feature_a.keys())  # record the keys since the features will be updated
-
-            #         rep_a = self.model(sentence_feature_a)['sentence_embedding']
-            #         sentence_feature_a = {k: v for k, v in sentence_feature_a.items() if k in ori_feature_keys}
-            #         if not self.no_pair:
-            #             rep_b = self.model(sentence_feature_b)['sentence_embedding']
-            #             sentence_feature_b = {k: v for k, v in sentence_feature_b.items() if k in ori_feature_keys}
-            #         else:
-            #             rep_b = None
-
-            #         self.model[0].auto_model.set_flag(f"data_aug_{self.data_augmentation_strategy}", True)
-            #         rep_a_shuffle = self.model(sentence_feature_a)['sentence_embedding']
-            #         if not self.no_pair:
-            #             self.model[0].auto_model.set_flag(f"data_aug_{self.data_augmentation_strategy}", True)
-            #             rep_b_shuffle = self.model(sentence_feature_b)['sentence_embedding']
-            #         else:
-            #             rep_b_shuffle = None
-
-            #     elif self.use_contrastive_loss and self.data_augmentation_strategy == "cutoff": 
-            #         if not self.no_pair:
-            #             sentence_feature_a, sentence_feature_b = sentence_features
-            #         else:
-            #             sentence_feature_a = sentence_features[0]
-
-            #         ori_feature_keys = set(sentence_feature_a.keys())  # record the keys since the features will be updated
-
-            #         rep_a = self.model(sentence_feature_a)['sentence_embedding'] 
-            #         #transformer and pooling   transformer forward에서 modeling.bert호출 + 이곳에서 data augmentation 진행 
-            #         sentence_feature_a = {k: v for k, v in sentence_feature_a.items() if k in ori_feature_keys}
-            #         if not self.no_pair:
-            #             rep_b = self.model(sentence_feature_b)['sentence_embedding']
-            #             sentence_feature_b = {k: v for k, v in sentence_feature_b.items() if k in ori_feature_keys}
-            #         else:
-            #             rep_b = None
-                    
-            #         #옵션을 키고 이제 다시 임베딩 통과,,,
-            #         self.model[0].auto_model.set_flag("data_aug_cutoff", True)
-            #         self.model[0].auto_model.set_flag("data_aug_cutoff.direction", self.cutoff_direction)
-            #         self.model[0].auto_model.set_flag("data_aug_cutoff.rate", self.cutoff_rate)
-            #         rep_a_cutoff = self.model(sentence_feature_a)['sentence_embedding']
-            #         if not self.no_pair:
-            #             self.model[0].auto_model.set_flag("data_aug_cutoff", True)
-            #             self.model[0].auto_model.set_flag("data_aug_cutoff.direction", self.cutoff_direction)
-            #             self.model[0].auto_model.set_flag("data_aug_cutoff.rate", self.cutoff_rate)
-            #             rep_b_cutoff = self.model(sentence_feature_b)['sentence_embedding']
-            #         else:
-            #             rep_b_cutoff = None
-            #     else: 
-            #         reps = [self.model(sentence_feature)['sentence_embedding'] for sentence_feature in sentence_features]
-            #         if not self.no_pair:
-            #             rep_a, rep_b = reps
-            #         else:
-            #             rep_a, rep_b = reps[0], None
-            # else:
-            #     if not self.no_pair:
-            #         sentence_feature_a, sentence_feature_b = sentence_features
-            #     else:
-            #         sentence_feature_a = sentence_features[0] #차피 0밖에없음
-            #     #cutoff는 어디짜르는거지?
-            #     ori_feature_keys = set(sentence_feature_a.keys())  # record the keys since the features will be updated
-            #     rep_a_view1 = self._data_aug(sentence_feature_a, self.data_augmentation_strategy_final_1, ori_feature_keys, self.cutoff_rate_final_1)
-            #     rep_a_view2 = self._data_aug(sentence_feature_a, self.data_augmentation_strategy_final_2, ori_feature_keys, self.cutoff_rate_final_2)
-            #     if not self.no_pair:
-            #         rep_b_view1 = self._data_aug(sentence_feature_b, self.data_augmentation_strategy_final_1, ori_feature_keys, self.cutoff_rate_final_1)
-            #         rep_b_view2 = self._data_aug(sentence_feature_b, self.data_augmentation_strategy_final_2, ori_feature_keys, self.cutoff_rate_final_2)
-            #     else:
-            #         rep_b_view1 = None
-            #         rep_b_view2 = None
-
             # loss calculation
             final_loss = 0
             
-            if self.args.train_way == "joint" or self.args.train_way == "sup":
+            if self.args.train_way == "joint" or "sup":
                 match_output_n_n = self._reps_to_output(rep_a, rep_b)
                 # match_outpput_n_n = [batch size, 3]    3 means num of classes (entail, contra, neutral)
                 loss_fct = nn.CrossEntropyLoss()
                 loss_n_n = loss_fct(match_output_n_n, labels.view(-1))
                 final_loss += loss_n_n * adv_rate
                 
-            if self.args.train_way == "unsup" or self.args.train_way == "joint":
-                contrastive_loss_a = self._contrastive_loss_forward(rep_a_view1 , rep_a_view2, hidden_norm=self.do_hidden_normalization, temperature=self.temperature) 
+            if self.args.train_way == "unsup" or "joint":
+                contrastive_loss_a = self._contrastive_loss_forward(rep_a_view1 , rep_a_view2, temperature=self.temperature) 
                 if not self.no_pair: #recheck
-                    contrastive_loss_b = self._contrastive_loss_forward(rep_b_view1, rep_b_view2, hidden_norm=self.do_hidden_normalization, temperature=self.temperature)
+                    contrastive_loss_b = self._contrastive_loss_forward(rep_b_view1, rep_b_view2, temperature=self.temperature)
                 else:
                     contrastive_loss_b = torch.tensor(0.0)
                 contrastive_loss = contrastive_loss_a + contrastive_loss_b
