@@ -4,6 +4,7 @@ import sys
 from datetime import datetime
 
 import torch
+from prettytable import PrettyTable
 from transformers import set_seed, BertConfig, BertModel, BertTokenizer
 
 sys.path.insert(0, './SentEval')  # To SentEval
@@ -16,6 +17,41 @@ logger = logging.getLogger(__name__)
 def load_model_config(path):
     config = torch.load(path, map_location='cpu')
     return config['model_name'], config['model_state_dict'], config['model_config_dict']
+
+
+def print_table(task_names, scores):
+    tb = PrettyTable()
+    tb.field_names = task_names
+    tb.add_row(scores)
+    print(tb)
+
+
+def print_results(results):
+    task_names = []
+    scores = []
+    for task in ['STS12', 'STS13', 'STS14', 'STS15', 'STS16', 'STSBenchmark', 'SICKRelatedness']:
+        task_names.append(task)
+        if task in results:
+            if task in ['STS12', 'STS13', 'STS14', 'STS15', 'STS16']:
+                scores.append("%.2f" % (results[task]['all']['spearman']['all'] * 100))
+            else:
+                scores.append("%.2f" % (results[task]['test']['spearman'].correlation * 100))
+        else:
+            scores.append("0.00")
+    task_names.append("Avg.")
+    scores.append("%.2f" % (sum([float(score) for score in scores]) / len(scores)))
+    print_table(task_names, scores)
+    task_names = []
+    scores = []
+    for task in ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']:
+        task_names.append(task)
+        if task in results:
+            scores.append("%.2f" % (results[task]['acc']))
+        else:
+            scores.append("0.00")
+    task_names.append("Avg.")
+    scores.append("%.2f" % (sum([float(score) for score in scores]) / len(scores)))
+    print_table(task_names, scores)
 
 
 def run_sent_eval(sent_eval_params, tasks, model, tokenizer, device):
@@ -41,10 +77,13 @@ def run_sent_eval(sent_eval_params, tasks, model, tokenizer, device):
 
         return pooler_output.cpu()
 
+    results = {}
     se = senteval.engine.SE(sent_eval_params, batcher, prepare)
     for task in tasks:
         result = se.eval(task)
-        logging.info(result)
+        results[task] = result
+
+    print_results(results)
 
 
 def main():

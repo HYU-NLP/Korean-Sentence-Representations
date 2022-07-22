@@ -20,7 +20,7 @@ import logging
 from scipy.stats import spearmanr, pearsonr
 
 from senteval.utils import cosine
-from senteval.sick import SICKRelatednessEval
+from senteval.sick import SICKEval
 
 
 class STSEval(object):
@@ -157,7 +157,31 @@ class STS16Eval(STSEval):
         self.loadFile(taskpath)
 
 
-class STSBenchmarkEval(SICKRelatednessEval):
+class STSBenchmarkEval(STSEval):
+    def __init__(self, task_path, seed=1111):
+        logging.debug('\n\n***** Transfer task : STSBenchmark*****\n\n')
+        self.seed = seed
+        self.samples = []
+        train = self.loadFile(os.path.join(task_path, 'sts-train.csv'))
+        dev = self.loadFile(os.path.join(task_path, 'sts-dev.csv'))
+        test = self.loadFile(os.path.join(task_path, 'sts-test.csv'))
+        self.datasets = ['train', 'dev', 'test']
+        self.data = {'train': train, 'dev': dev, 'test': test}
+
+    def loadFile(self, fpath):
+        sick_data = {'X_A': [], 'X_B': [], 'y': []}
+        with io.open(fpath, 'r', encoding='utf-8') as f:
+            for line in f:
+                text = line.strip().split('\t')
+                sick_data['X_A'].append(text[5].split())
+                sick_data['X_B'].append(text[6].split())
+                sick_data['y'].append(text[4])
+
+        sick_data['y'] = [float(s) for s in sick_data['y']]
+        self.samples += sick_data['X_A'] + sick_data["X_B"]
+        return (sick_data['X_A'], sick_data["X_B"], sick_data['y'])
+
+class STSBenchmarkFinetune(SICKEval):
     def __init__(self, task_path, seed=1111):
         logging.debug('\n\n***** Transfer task : STSBenchmark*****\n\n')
         self.seed = seed
@@ -177,3 +201,31 @@ class STSBenchmarkEval(SICKRelatednessEval):
 
         sick_data['y'] = [float(s) for s in sick_data['y']]
         return sick_data
+        
+class SICKRelatednessEval(STSEval):
+    def __init__(self, task_path, seed=1111):
+        logging.debug('\n\n***** Transfer task : SICKRelatedness*****\n\n')
+        self.seed = seed
+        self.samples = []
+        train = self.loadFile(os.path.join(task_path, 'SICK_train.txt'))
+        dev = self.loadFile(os.path.join(task_path, 'SICK_trial.txt'))
+        test = self.loadFile(os.path.join(task_path, 'SICK_test_annotated.txt'))
+        self.datasets = ['train', 'dev', 'test']
+        self.data = {'train': train, 'dev': dev, 'test': test}
+    
+    def loadFile(self, fpath):
+        skipFirstLine = True
+        sick_data = {'X_A': [], 'X_B': [], 'y': []}
+        with io.open(fpath, 'r', encoding='utf-8') as f:
+            for line in f:
+                if skipFirstLine:
+                    skipFirstLine = False
+                else:
+                    text = line.strip().split('\t')
+                    sick_data['X_A'].append(text[1].split())
+                    sick_data['X_B'].append(text[2].split())
+                    sick_data['y'].append(text[3])
+
+        sick_data['y'] = [float(s) for s in sick_data['y']]
+        self.samples += sick_data['X_A'] + sick_data["X_B"]
+        return (sick_data['X_A'], sick_data["X_B"], sick_data['y'])
