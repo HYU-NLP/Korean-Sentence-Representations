@@ -1,3 +1,7 @@
+import os
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 import argparse
 import os
 from datetime import datetime
@@ -10,6 +14,11 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from transformers import set_seed, BertTokenizer, BertModel, BertConfig
 
+import numpy as np
+from sklearn.metrics import accuracy_score, mean_squared_error
+from scipy.stats import pearsonr, spearmanr
+import copy
+from datasets import load_dataset
 
 # TODO
 #  1 - For supervised SimCSE,
@@ -19,12 +28,14 @@ from transformers import set_seed, BertTokenizer, BertModel, BertConfig
 #  2 - STS tasks and Transfer tasks
 
 class BertForSupervisedSimCse(nn.Module):
-    def __init__(self, model_name, temperature, add_mlp_layer):
+    def __init__(self, model_name, temperature, add_mlp_layer, num_labels): # num_labels
         super(BertForSupervisedSimCse, self).__init__()
+
 
         self.config = BertConfig.from_pretrained(model_name)  # uses default dropout rate = 0.1
         self.bert = BertModel.from_pretrained('bert-base-uncased')
-
+        self.hidden_size = BertConfig.from_pretrained(model_name).hidden_size
+        
         self.cosine_similarity = nn.CosineSimilarity(dim=-1)
         self.temperature = temperature
         self.add_mlp_layer = add_mlp_layer
@@ -34,6 +45,9 @@ class BertForSupervisedSimCse(nn.Module):
                 nn.Linear(self.config.hidden_size, self.config.hidden_size),
                 nn.Tanh()
             )
+            
+        self.linear = nn.Linear(in_features=self.hidden_size, out_features=num_labels)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, input_ids, attention_mask, token_type_ids, **kwargs):
         batch_size = input_ids.shape[0]
@@ -58,6 +72,29 @@ class BertForSupervisedSimCse(nn.Module):
         z1_z3_cos = self.cosine_similarity(z1.unsqueeze(1), z3.unsqueeze(0)) / self.temperature
         cos_sim = torch.cat([z1_z2_cos, z1_z3_cos], dim=1)
         return cos_sim
+    
+    def encoder(self, input_ids, attention_mask, token_type_ids, **kwargs):
+        batch_size = input_ids.shape[0]
+
+        # flat, (batch_size * 3, seq_len)
+        input_ids = input_ids.view((-1, input_ids.shape[-1]))
+        attention_mask = attention_mask.view((-1, input_ids.shape[-1]))
+        token_type_ids = token_type_ids.view((-1, input_ids.shape[-1]))
+
+        # encode, (batch_size * 3, hidden_size)
+        _, pooler_out = self.bert(input_ids, attention_mask, token_type_ids, return_dict=False)
+        
+        # if self.add_mlp_layer:
+        #     pooler_out = self.mlp_layer(pooler_out) # batch, hiddensize(24, 768)
+        
+        # #pooler_out = pooler_out.view((batch_size, 2, pooler_out.shape[-1]))
+        #z1, z2 = pooler_out[:,0], pooler_out[:,1]
+        #cos_sim = self.cosine_similarity(z1.unsqueeze(1), z2.unsqueeze(0)) / self.temperature
+        linear_out = self.linear(pooler_out) # 24, 1
+        sig_out = self.sigmoid(linear_out) * 5
+        
+        #print("ok")
+        return sig_out #.squeeze()
 
 
 class SupervisedSimCseDataset(Dataset):
@@ -94,35 +131,70 @@ def save_model_config(path, model_name, model_state_dict, model_config_dict):
         'model_state_dict': model_state_dict,
         'model_config_dict': model_config_dict
     }, path)
-
-
-def pretrain_model(epochs, device, dataloader, model, loss_fn, optimizer, score_fn, model_save_fn):
+    
+def model_save_fn(args, pretrained_model):
+    if pretrained_model != None : 
+        save_model_config(f'checkpoint/', args.model_name, pretrained_model.bert.state_dict(), pretrained_model.bert.config.to_dict())
+    
+def evaluate_model (device, dataloader, model, fn_loss, fn_score):
     model.to(device)
-    loss_fn.to(device)
+    fn_loss.to(device)
 
+    eval_loss = 0
+    eval_pred = []
+    eval_label = []
+    
+    model.eval()
+    with torch.no_grad():
+        for batch in dataloader : # sts-b
+            batch = {k: v.long().to(device) for k, v in batch.items()}
+            # labels = batch['labels'].to(device)
+            predict = model.encoder(**batch) # 24,1
+            loss = fn_loss (predict.squeeze().unsqueeze(0), batch['labels'].float().unsqueeze(0)) #batch['labels].size() = torch.size([24])
+            
+            eval_loss += loss.item()
+            eval_pred.extend(predict.clone().cpu().tolist())
+            eval_label.extend(batch['labels'].clone().cpu().tolist())
+        
+    eval_score = fn_score(eval_pred, eval_label) 
+    return eval_score, eval_loss
+
+def pretrain_model(epochs, device, train_dataloader, validation_dataloader, model, fn_loss, optimizer, fn_score, model_save_fn, args):
+    model.to(device)
+    fn_loss.to(device)
+
+    best_val_loss = 0
+    best_val_score = 0
+    best_model = None
+    
     for epoch in range(1, epochs + 1):
         model.train()
 
         train_loss = 0
 
-        for i, batch in enumerate(tqdm(dataloader)):
-            input_ids = batch['input_ids'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
-            token_type_ids = batch['token_type_ids'].to(device)
-            labels = torch.arange(batch['input_ids'].shape[0]).long().to(device)
+        for i, batch in enumerate(tqdm(train_dataloader)):
+            input_ids = batch['input_ids'].long().to(device)
+            attention_mask = batch['attention_mask'].long().to(device)
+            token_type_ids = batch['token_type_ids'].long().to(device)
+            labels = torch.arange(batch['input_ids'].shape[0]).long().to(device) 
 
             optimizer.zero_grad()
             predict = model(input_ids, attention_mask, token_type_ids)
-            loss = loss_fn(predict, labels)
+            loss = fn_loss(predict, labels)
             loss.backward()
             optimizer.step()
-
             train_loss += loss.item()
 
-            if i % 1000 == 0 or i == len(dataloader) - 1:
-                model_save_fn(model)
-                print(f'\n{i}th iteration (train loss): ({train_loss:.4})')
-                train_loss = 0
+            # eval
+            if (i + (epoch - 1) * len(train_dataloader)) % 250 == 0:
+                val_score, val_loss = evaluate_model(device, validation_dataloader, model, fn_loss, fn_score)
+                if val_score > best_val_score :
+                    best_model = copy.deepcopy(model)
+                    best_val_score = val_score
+
+                print(f"\n{epoch}th epoch Validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
+            model_save_fn(args, best_model)
+    return best_model
 
 
 def main():
@@ -167,24 +239,51 @@ def main():
         pretrain_dataset = args.pretrain_dataset
         model_state_name = args.model_state_name
         add_mlp_layer = args.add_mlp_layer
-
-        df_train = pd.read_csv(f'dataset/{pretrain_dataset}', sep=',')
-
+        
+        df_train = pd.read_csv(f'/home/skchajie/Proj-Sentence-Representation-main/Supervised-SimCSE/dataset/{pretrain_dataset}', sep=',')
+        df_val = load_dataset('glue', 'stsb', split="validation")
+        
         tokenizer = BertTokenizer.from_pretrained(model_name)
+        
+        def encode_input(examples):
+            encoded = tokenizer(examples['sentence1'], examples['sentence2'], max_length=seq_max_length, truncation=True, padding='max_length')
+            encoded['input_ids'] = list(map(float, encoded['input_ids']))
+            return encoded
+
+        def format_output(example):
+            return {'labels': example['label']}
+ 
+        
         train_dataset = SupervisedSimCseDataset(df_train, tokenizer, seq_max_length)
+        validation_dataset = df_val.map(encode_input).map(format_output)
+        validation_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'labels'])
+        
         train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
-        model = BertForSupervisedSimCse(model_name, temperature, add_mlp_layer)
+        validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size)
+        
+        model = BertForSupervisedSimCse(model_name, temperature, add_mlp_layer, 1)
         optimizer = AdamW(model.parameters(), lr=learning_rate)  # AdamW is used in SimCSE original project
-        loss_fn = nn.CrossEntropyLoss()
+        
+        fn_loss = nn.CrossEntropyLoss()
 
-        def score_fn(pred, label):
-            pass
+        #def fn_loss(pred, label):
+        #     score = spearmanr(pred.cpu().detach().numpy(), label.cpu().detach().numpy())[0] # correlation, pvalue # .cpu()
+        #     return score
+        def fn_score(output, label):
+            score = spearmanr(output, label)[0]
+            return score
+  
+        # def fn_score(pred, label) :
+        #     score = pearsonr(pred, label)[0]
+        #     return score
+        #     # return accuracy_score(label, pred) #np.argmax*pred , axis=1
 
-        def model_save_fn(pretrained_model):
-            save_model_config(f'checkpoint/{model_state_name}', model_name, pretrained_model.bert.state_dict(), pretrained_model.config.to_dict())
 
-        pretrain_model(epochs, device, train_dataloader, model, loss_fn, optimizer, score_fn, model_save_fn)
+        best_model = pretrain_model(epochs, device, train_dataloader, validation_dataloader, model, fn_loss, optimizer, fn_score, model_save_fn, args)
 
+        #evaluate sent eval transfer task (best model)
+        #evaludate sent eval sts task (best model)
+        
     else:
         ValueError(f"Unknown task: {task}")
 
