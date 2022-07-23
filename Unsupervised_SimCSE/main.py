@@ -23,15 +23,26 @@ class BertForUnsupervisedSimCSE(nn.Module):
 
         self.hidden_size = BertConfig.from_pretrained(bert_model_name).hidden_size
         self.bert = BertModel.from_pretrained(bert_model_name)
-        self.linear = nn.Linear(in_features=self.hidden_size, out_features=num_labels)
+        self.linear = nn.Linear(in_features=self.hidden_size, out_features=self.hidden_size)
         self.activation = nn.Tanh()
 
     def forward(self, batch):
-        input_ids, attention_mask, token_type_ids = batch['input_ids'], batch['attention_mask'], batch['token_type_ids']
-        _, pooler_out = self.bert(input_ids, attention_mask, token_type_ids, return_dict=False)
-        linear_out = self.linear(pooler_out)
-        activation_out = self.activation(linear_out)
-        return activation_out.squeeze()
+        if len(batch) == 3 : # train batch data encoding
+            input_ids, attention_mask, token_type_ids = batch['input_ids'], batch['attention_mask'], batch['token_type_ids']
+            _, pooler_out = self.bert(input_ids, attention_mask, token_type_ids, return_dict=False)
+            linear_out = self.linear(pooler_out)
+            activation_out = self.activation(linear_out)
+            return activation_out.squeeze()
+        else : # validation train batch data encoding, same as len(batch) == 7
+            input_ids_1, attention_mask_1, token_type_ids_1 = batch['input_ids_1'], batch['attention_mask_1'], batch['token_type_ids_1']
+            input_ids_2, attention_mask_2, token_type_ids_2 = batch['input_ids_2'], batch['attention_mask_2'], batch['token_type_ids_2']
+            _, pooler_out_1 = self.bert(input_ids_1, attention_mask_1, token_type_ids_1, return_dict=False)
+            _, pooler_out_2 = self.bert(input_ids_2, attention_mask_2, token_type_ids_2, return_dict=False)
+            linear_out_1 = self.linear(pooler_out_1)
+            linear_out_2 = self.linear(pooler_out_2)
+            activation_out_1 = self.activation(linear_out_1)
+            activation_out_2 = self.activation(linear_out_2)
+            return activation_out_1.squeeze(), activation_out_2.squeeze()
 
 class wikiDataset(Dataset):
     def __init__(self, example_text, args, tokenizer):
@@ -54,7 +65,6 @@ class wikiDataset(Dataset):
     def __len__(self): 
         return self.len
     
-    # 여기서 텐서를 출력해야지
     def __getitem__(self,idx) : 
         self.tokens = self.tokenizer(self.data[idx], truncation=True, padding="max_length", max_length=self.args.seq_max_length, return_tensors="pt")
         self.tokens['input_ids'] = self.tokens['input_ids'].squeeze()
@@ -62,25 +72,40 @@ class wikiDataset(Dataset):
         self.tokens['attention_mask'] = self.tokens['attention_mask'].squeeze()
         return self.tokens
     
+class STSBenchmark(Dataset):
+    def __init__(self, args, tokenizer):
+        self.args = args
+        data = load_dataset('glue', 'stsb', split="validation")
+        self.data = data
+        self.len = len(data)
+        self.tokenizer = tokenizer
+        
+    def __len__(self): 
+        return self.len
+    
+    # tokenize 2 sentences
+    def __getitem__(self,idx) : 
+        self.total_tokens = {}
+        self.sentence1_tokens = self.tokenizer(self.data['sentence1'][idx], truncation=True, padding="max_length", max_length=self.args.seq_max_length, return_tensors="pt")
+        self.sentence2_tokens = self.tokenizer(self.data['sentence2'][idx], truncation=True, padding="max_length", max_length=self.args.seq_max_length, return_tensors="pt")
+        # sentence1
+        self.total_tokens['input_ids_1'] = self.sentence1_tokens['input_ids'].squeeze()
+        self.total_tokens['token_type_ids_1'] = self.sentence1_tokens['token_type_ids'].squeeze()
+        self.total_tokens['attention_mask_1'] = self.sentence1_tokens['attention_mask'].squeeze()
+        # sentence2
+        self.total_tokens['input_ids_2'] = self.sentence2_tokens['input_ids'].squeeze()
+        self.total_tokens['token_type_ids_2'] = self.sentence2_tokens['token_type_ids'].squeeze()
+        self.total_tokens['attention_mask_2'] = self.sentence2_tokens['attention_mask'].squeeze()
+        self.total_tokens['labels'] = torch.Tensor(self.data['label'])[idx]
+        return self.total_tokens
+        
 def train_setting(args, tokenizer):
-    seq_max_length = args.seq_max_length
     batch_size = args.batch_size
     example_text = args.example_text
     set_seed(args.seed)
 
     train_dataset = wikiDataset(example_text, args, tokenizer)
-    validation_dataset = load_dataset('glue', 'stsb', split="validation")
-
-    def encode_input(examples):
-        encoded = tokenizer(examples['sentence1'], examples['sentence2'], max_length=seq_max_length, truncation=True, padding='max_length')
-        encoded['input_ids'] = list(map(float, encoded['input_ids']))
-        return encoded
-
-    def format_output(example):
-        return {'labels': example['label']}
- 
-    validation_dataset = validation_dataset.map(encode_input).map(format_output)
-    validation_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'labels'])
+    validation_dataset = STSBenchmark(args, tokenizer)
     
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
     validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size)
@@ -92,9 +117,11 @@ def get_score(output, label):
     return score
 
 def cosine_similarity(embeddings1, embeddings2, temperature=0.05):
-    unit_embed1 = embeddings1 / torch.norm(embeddings1)
-    unit_embed2 = embeddings2 / torch.norm(embeddings2)
-    similarity = torch.matmul(unit_embed1.unsqueeze(-1), unit_embed2.unsqueeze(0)) / temperature
+    # unit_embed1 = embeddings1 / torch.norm(embeddings1)
+    # unit_embed2 = embeddings2 / torch.norm(embeddings2)
+    # similarity = torch.matmul(unit_embed1, unit_embed2) / temperature
+    # BERT를 통과해 나온 output이므로  batch_size개의sentence embedding size는 [batch_size, 768]
+    similarity = nn.CosineSimilarity()(embeddings1, embeddings2) / temperature
     return similarity
 
 def save_model_config(path, model_name, model_state_dict, model_config_dict):
@@ -141,7 +168,8 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
             else : 
                 labels = torch.arange(cos_sim.size(0)).to(device)
             
-            loss = loss_fn(cos_sim, labels)
+            # 0차원 또는 1차원 텐서 입력
+            loss = loss_fn(cos_sim, labels.type(torch.FloatTensor).to(device))
             loss.backward()
             optimizer.step()
             
@@ -155,13 +183,14 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
 
                     for _, val_batch in enumerate(tqdm(validation_dataloader)):
                         val_batch = {k: v.to(device) for k, v in val_batch.items()}
-                        predict = model(val_batch)
+                        val_output1, val_output2 = model(val_batch)
+                        val_cos_sim = cosine_similarity(val_output1, val_output2, temperature)
                         
-                        if predict.dim() == 0 : 
-                            predict = predict.unsqueeze(dim=0)
-                        loss = loss_fn(predict, val_batch['labels'])
+                        if val_cos_sim.dim() == 0 : 
+                            val_cos_sim = val_cos_sim.unsqueeze(dim=0)
+                        loss = loss_fn(val_cos_sim, val_batch['labels'].type(torch.FloatTensor).to(device))
                         val_loss += loss.item()
-                        val_pred.extend(predict.clone().cpu().tolist())
+                        val_pred.extend(val_cos_sim.clone().cpu().tolist())
                         val_label.extend(val_batch['labels'].clone().cpu().tolist())
 
                         val_score = get_score(np.array(val_pred), np.array(val_label))
@@ -175,10 +204,10 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='bert-base-cased', type=str)
-    parser.add_argument('--batch_size', default=16, type=int)
-    parser.add_argument('--seq_max_length', default=512, type=int)
+    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--seq_max_length', default=32, type=int)
     parser.add_argument('--epochs', default=1, type=int)
-    parser.add_argument('--lr', default=5e-5, type=float)
+    parser.add_argument('--lr', default=3e-5, type=float)
     parser.add_argument('--gpu', default=1, type=int)
     parser.add_argument('--seed', default=4885, type=int)
     parser.add_argument('--task', default="glue_sts", type=str)
@@ -207,7 +236,6 @@ def main():
         train_dataloader, validation_dataloader = train_setting(args, tokenizer)        
         best_model = unsupervised_train(args, train_dataloader, validation_dataloader, bert_model, loss_fn)
         model_save_fn(args, best_model)
-        # best_model.bert.save_pretrained(f"Proj-Sentence-Representation/Unsupervised_SimCSE/model/{args.time}")
     else:
         print(f"There is no such task as {task}")
 
