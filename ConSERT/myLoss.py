@@ -10,157 +10,25 @@ import copy
 # for masking
 LARGE_NUM = 1e9
 
-
-# for warm-up scheduling
-def scheduler0(cur_step, global_step):
-    return 1.0, 1.0
-def scheduler1(cur_step, global_step):
-    """global_step=9814"""
-    if cur_step < 7950:
-        return 1.0, 1.0
-    else:
-        return 0.0, 1.0
-def scheduler2(cur_step, global_step):
-    """global_step=9814"""
-    if cur_step < 7950:
-        return 1.0, 1.0
-    else:
-        return 0.01, 1.0
-def scheduler3(cur_step, global_step):
-    """global_step=9814"""
-    if cur_step < 7900:
-        return 1.0, 1.0
-    else:
-        return 0.0, 1.0
-def scheduler4(cur_step, global_step):
-    """global_step=9814"""
-    if cur_step < 7900:
-        return 1.0, 1.0
-    else:
-        return 0.01, 1.0
-def scheduler5(cur_step, global_step):
-    """global_step=9814"""
-    if cur_step < 8814:
-        return 1.0, 1.0
-    else:
-        return 0.0, 0.1
-def scheduler6(cur_step, global_step):
-    """global_step=9814"""
-    if cur_step < 8814:
-        return 1.0, 1.0
-    else:
-        return 0.0, 0.03
-def scheduler7(cur_step, global_step):
-    """global_step=9814"""
-    if cur_step < 8814:
-        return 1.0, 1.0
-    else:
-        return 0.1, 0.1
-def scheduler8(cur_step, global_step):
-    """global_step=9814"""
-    if cur_step < 8814:
-        return 1.0, 1.0
-    else:
-        return 0.1, 0.03
-def scheduler9(cur_step, global_step):
-    level = cur_step // 1000
-    rate = pow(0.5, level)
-    return rate, 1.0
-def scheduler10(cur_step, global_step):
-    level = cur_step // 1000
-    rate = pow(0.3, level)
-    return rate, 1.0
-def scheduler11(cur_step, global_step):
-    level = cur_step // 1000
-    rate1 = pow(0.5, level)
-    rate2 = pow(0.7, level)
-    return rate1, rate2
-def scheduler12(cur_step, global_step):
-    level = cur_step // 3000
-    rate = pow(0.464, level)
-    return rate, 1.0
-def scheduler13(cur_step, global_step):
-    level = cur_step // 3000
-    rate = pow(0.215, level)
-    return rate, 1.0
-def scheduler14(cur_step, global_step):
-    level = cur_step // 3000
-    rate = pow(0.1, level)
-    return rate, 1.0
-def scheduler15(cur_step, global_step):
-    level = cur_step // 4000
-    rate = pow(0.316, level)
-    return rate, 1.0
-def scheduler16(cur_step, global_step):
-    level = cur_step // 4000
-    rate = pow(0.1, level)
-    return rate, 1.0
-def scheduler17(cur_step, global_step):
-    level = cur_step // 4000
-    rate = pow(0.032, level)
-    return rate, 1.0
-def scheduler18(cur_step, global_step):
-    if cur_step < int(global_step * 0.8):
-        return 1.0, 1.0
-    else:
-        return 0.0, 1.0
-    
-
-LOSS_RATE_SCHEDULERS = [
-    scheduler0,
-    scheduler1,
-    scheduler2,
-    scheduler3,
-    scheduler4,
-    scheduler5,
-    scheduler6,
-    scheduler7,
-    scheduler8,
-    scheduler9,
-    scheduler10,
-    scheduler11,
-    scheduler12,
-    scheduler13,
-    scheduler14,
-    scheduler15,
-    scheduler16,
-    scheduler17,
-    scheduler18
-]
-
-
-def distance_to_center_mse_loss(x: torch.Tensor):
-    """x: shape (batch_size, hidden_dim)"""
-    bsz, hidden = x.shape
-    center = torch.mean(x, dim=0)
-    to_center_dist = torch.norm(x - center, p=2, dim=-1)
-    return to_center_dist.pow(2).mean()
-    
 class myLoss(nn.Module):
     def __init__(self,
                 args,
                  model: SentenceTransformer,
                  sentence_embedding_dimension: int,
                  num_labels: int,
-                 loss_rate_scheduler: int = 0,     # Contrast control used to loss and the main job losses relative size.
                  data_aug_strategy1: str =None,
                  data_aug_strategy2: str =None,
-                 contrastive_loss_rate: float = 1.0,                    
-                 regularization_term_rate: float = 0.0,  # The proportional size of a term, ie the variance of a distribution within the same batch
+                 contrastive_loss_rate: float = 1.0,  # alpha in the paper in joint                
                  temperature: float = 1.0,                              
                 ):
         super(myLoss, self).__init__()
         self.model = model
         self.num_labels = num_labels
         self.args= args
-        self.loss_rate_scheduler = loss_rate_scheduler
         self.data_aug_strategy1 = data_aug_strategy1
         self.data_aug_strategy2 = data_aug_strategy2
-
-        self.contrastive_loss = args.contrastive_loss
         self.no_pair = args.no_pair
         self.contrastive_loss_rate = contrastive_loss_rate
-        self.regularization_term_rate = regularization_term_rate
         self.temperature = temperature
         
         # Wf +b
@@ -185,7 +53,6 @@ class myLoss(nn.Module):
         hidden1 = torch.nn.functional.normalize(hidden1, p=2, dim=-1)
         hidden2 = torch.nn.functional.normalize(hidden2, p=2, dim=-1)
 
-
         hidden1_large = hidden1
         hidden2_large = hidden2
         #both are [batch size, dim]  
@@ -193,7 +60,7 @@ class myLoss(nn.Module):
         labels = torch.arange(0, batch_size).to(device=hidden1.device)
         #labels = [0,1,2,3,4, ... , 94,95]
         masks = torch.nn.functional.one_hot(torch.arange(0, batch_size), num_classes=batch_size).to(device=hidden1.device, dtype=torch.float)
-        #[96, 96] , 대각행렬 (대각선만 1)
+        # [batch size, batch size] diagonal matrix
 
         logits_aa = torch.matmul(hidden1, hidden1_large.transpose(0, 1)) / temperature  # shape (bsz, bsz) # numerator
         logits_aa = logits_aa - masks * LARGE_NUM
@@ -213,32 +80,31 @@ class myLoss(nn.Module):
         return {k: v for k, v in sentence_feature.items() if k in ori_keys}
     
 
-    #this could be the solution
-    def _data_aug(self, sentence_feature, name, ori_keys, cutoff_rate):
-        assert name in ("none", "shuffle", "token_cutoff", "feature_cutoff", "dropout")
-        sentence_feature = self._recover_to_origin_keys(sentence_feature, ori_keys)
-        if name == "none":
-            pass  # do nothing
-        elif name == "shuffle":
-            self.model[0].auto_model.set_flag("data_aug_shuffle", True)
-        elif name == "token_cutoff":
-            self.model[0].auto_model.set_flag("data_aug_cutoff", True)
-            self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "row")
-            self.model[0].auto_model.set_flag("data_aug_cutoff.rate", cutoff_rate)
-        elif name == "feature_cutoff":
-            self.model[0].auto_model.set_flag("data_aug_cutoff", True)
-            self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "column")
-            self.model[0].auto_model.set_flag("data_aug_cutoff.rate", cutoff_rate)
-        elif name == "dropout":
-            self.model[0].auto_model.set_flag("data_aug_cutoff", True)
-            self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "random")
-            self.model[0].auto_model.set_flag("data_aug_cutoff.rate", cutoff_rate)
-        rep = self.model(sentence_feature)["sentence_embedding"]
-        return rep
+    # #this could be the solution
+    # def _data_aug(self, sentence_feature, name, ori_keys, cutoff_rate):
+    #     assert name in ("none", "shuffle", "token_cutoff", "feature_cutoff", "dropout")
+    #     sentence_feature = self._recover_to_origin_keys(sentence_feature, ori_keys)
+    #     if name == "none":
+    #         pass  # do nothing
+    #     elif name == "shuffle":
+    #         self.model[0].auto_model.set_flag("data_aug_shuffle", True)
+    #     elif name == "token_cutoff":
+    #         self.model[0].auto_model.set_flag("data_aug_cutoff", True)
+    #         self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "row")
+    #         self.model[0].auto_model.set_flag("data_aug_cutoff.rate", cutoff_rate)
+    #     elif name == "feature_cutoff":
+    #         self.model[0].auto_model.set_flag("data_aug_cutoff", True)
+    #         self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "column")
+    #         self.model[0].auto_model.set_flag("data_aug_cutoff.rate", cutoff_rate)
+    #     elif name == "dropout":
+    #         self.model[0].auto_model.set_flag("data_aug_cutoff", True)
+    #         self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "random")
+    #         self.model[0].auto_model.set_flag("data_aug_cutoff.rate", cutoff_rate)
+    #     rep = self.model(sentence_feature)["sentence_embedding"]
+    #     return rep
     
     def forward(self, sentence_features: Iterable[Dict[str, Tensor]], labels: Tensor):
-        
-        if not self.contrastive_loss:  # for sup-unsup, need to train sup first
+        if self.args.train_way == "sup":
             reps = [self.model(sentence_feature)['sentence_embedding'] for sentence_feature in sentence_features]
             rep_a, rep_b = reps
 
@@ -252,15 +118,11 @@ class myLoss(nn.Module):
             else:
                 return reps, output
         else:  
-            total_step, cur_step = self.model.num_steps_total, self.model.global_step
-            adv_rate, cl_rate = LOSS_RATE_SCHEDULERS[self.loss_rate_scheduler](cur_step, total_step)
-            
-            
             ############## modified ##############
             # making crossentropy input
             # deepcopy,, 왜왜왜ㅙㅇ 아래도 sentence_feature_a 2번씩 쓰는데 이런문제가 왜 안생기지?;
             # 이러한 문제를 방지하기위해서 key reset을 하는거 같으넫,, 아닌가, 차피 forwarding이 된 상태니까
-            if self.args.train_way == "joint" or "sup":
+            if self.args.train_way == ("joint" or "sup"):
                 aux_sentence_features = copy.deepcopy(sentence_features)
                 #this causes CUDA OOM. should come up with other solutions
                 if not self.no_pair:
@@ -281,6 +143,7 @@ class myLoss(nn.Module):
                     rep_b = None
 
             # data augmentation generation
+            #_data_aug 함수로 통합시키면 더 깔끔하지 않을까
             if self.data_aug_strategy1 == "None":
                 if self.data_aug_strategy2 == "None": # (none, none)
                     pass
@@ -321,8 +184,7 @@ class myLoss(nn.Module):
                 elif self.data_aug_strategy2 == "token_cutoff": # (shuffle, token_cutoff)
                     pass
                 elif self.data_aug_strategy2 == "feature_cutoff": # (shuffle, feature_cutoff)
-                    if not self.no_pair:
-                        sentence_feature_a, sentence_feature_b = sentence_features
+                    if not self.no_pair:                        sentence_feature_a, sentence_feature_b = sentence_features
                     else:
                         sentence_feature_a = sentence_features[0] # sentenc_feature_b = None
 
@@ -364,23 +226,19 @@ class myLoss(nn.Module):
             # loss calculation
             final_loss = 0
             
-            if self.args.train_way == "joint" or "sup":
+            if self.args.train_way == ("joint" or "sup"):
                 match_output_n_n = self._reps_to_output(rep_a, rep_b)
                 # match_outpput_n_n = [batch size, 3]    3 means num of classes (entail, contra, neutral)
                 loss_fct = nn.CrossEntropyLoss()
                 loss_n_n = loss_fct(match_output_n_n, labels.view(-1))
-                final_loss += loss_n_n * adv_rate
+                final_loss += loss_n_n
                 
-            if self.args.train_way == "unsup" or "joint":
+            if self.args.train_way == ("unsup" or "joint"):
                 contrastive_loss_a = self._contrastive_loss_forward(rep_a_view1 , rep_a_view2, temperature=self.temperature) 
                 if not self.no_pair: #recheck
                     contrastive_loss_b = self._contrastive_loss_forward(rep_b_view1, rep_b_view2, temperature=self.temperature)
                 else:
                     contrastive_loss_b = torch.tensor(0.0)
                 contrastive_loss = contrastive_loss_a + contrastive_loss_b
-                final_loss += self.contrastive_loss_rate * contrastive_loss * cl_rate
-                if self.regularization_term_rate > 1e-10:
-                    regularization_term = distance_to_center_mse_loss(rep_a_view1)  # note: only applied for rep_a_view1
-                    final_loss += self.regularization_term_rate * regularization_term
-            
+                final_loss += self.contrastive_loss_rate * contrastive_loss
             return final_loss
