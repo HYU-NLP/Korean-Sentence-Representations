@@ -157,10 +157,10 @@ def main():
 
     # initiate loss model
     if args.train_way == "sup":
-        train_loss = losses.myLoss(args, model=model, sentence_embedding_dimension=model.get_sentence_embedding_dimension(),
+        train_loss = losses.MyLoss(args, model=model, sentence_embedding_dimension=model.get_sentence_embedding_dimension(),
          num_labels=len(label2int))
     else:
-        train_loss = losses.myLoss(args, model=model, sentence_embedding_dimension=model.get_sentence_embedding_dimension(), 
+        train_loss = losses.MyLoss(args, model=model, sentence_embedding_dimension=model.get_sentence_embedding_dimension(), 
         num_labels=len(label2int), data_aug_strategy1 = args.data_aug_strategy1, data_aug_strategy2 = args.data_aug_strategy2, 
         contrastive_loss_rate=args.cl_rate, temperature=args.temperature)
         
