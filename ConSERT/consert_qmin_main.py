@@ -22,23 +22,6 @@ from transformers import set_seed
 
 
 
-# class OurSentenceDataset()  => inherits SentenceDataset from sentence_transformer
-# class OurSentenceTransformer(SentenceTransformer)
-# class OutLoss()  => probably inherits AdvCLSoftmaxLoss
-
-
-def train(args, model, tokenizer, train_data, val_data):
-    pass
-   
-    #model = SentenceTransformer
-    #model.fit()
-    #copy.deepcopy(model),,, 이런식으로 안하고 그냥 save_path로 할까?
-    #return best_model or model_save
-
-
-def evaluate(args, model, tokenizer, test_data):
-    pass
-
 
 def set_seed(seed: int, for_multi_gpu: bool):
     """
@@ -85,14 +68,11 @@ def main():
     setattr(args, 'device', f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
     #setattr(args, 'time', datetime.datetime.now().strftime('%Y%m%d-%H:%M:%S'))
 
-    if args.train_way == "unsup":
+    if args.train_way in ["unsup", "joint-unsup", "sup", "sup-unsup"]:
         setattr(args, 'no_pair', True)
+        setattr(args, 'no_dropout', True)
 
-    elif args.train_way == "sup-unsup":
-        # we have to have the sup model first
-        setattr(args, "num_epochs", 1)
-
-    elif args.train_way == "joint-unsup":
+    elif args.train_way in ["joint", "sup"]:
         # we have to have the joint model first
         setattr(args, "num_epochs", 1)
     ################# ADDED #################
@@ -151,7 +131,7 @@ def main():
 
     #load_data
     label2int = {"contradiction": 0, "entailment": 1, "neutral": 2}
-    if args.train_way == ("joint" or "sup"):
+    if args.train_way in ["joint" ,"sup"]:
         # Read the AllNLI.tsv.gz file and create the training dataset
         logging.info("Read AllNLI train dataset")
         train_samples = []
@@ -165,7 +145,7 @@ def main():
                         train_samples.append(InputExample(texts=[row['sentence2']]))
                     else:
                         train_samples.append(InputExample(texts=[row['sentence1'], row['sentence2']], label=label_id))
-    elif args.train_way in ["unsup" ,"joint", "sup"]:
+    elif args.train_way in ["unsup" ,"joint", "sup-unsup", "joint-unsup"]:
         # Read data/downstream/STS and data/downstream/SICK and create the training dataset
         logging.info("Read STS and SICK train dataset")
         train_samples = data_utils.load_datasets(datasets=["sts12", "sts13", "sts14", "sts15", "sts16", "stsb", "sickr"], need_label=False, use_all_unsupervised_texts=True, no_pair=args.no_pair)
@@ -173,7 +153,7 @@ def main():
     data_utils.save_samples(train_samples, os.path.join(model_save_path, "train_texts.txt"))
 
     train_dataset = SentencesDataset(train_samples, model=model)
-    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=train_batch_size)
+    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=train_batch_size, num_workers=8)
 
     # initiate loss model
     if args.train_way == "sup":

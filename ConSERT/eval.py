@@ -5,7 +5,6 @@ import argparse
 
 from sentence_transformers import SentenceTransformer, InputExample, LoggingHandler
 from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator, SimilarityFunction
-from data_utils import load_chinese_tsv_data
 
 
 logging.basicConfig(format='%(asctime)s - %(filename)s - %(levelname)s - %(message)s',
@@ -53,23 +52,6 @@ def load_paired_samples(input_file: str, label_file: str, scale=5.0):
         sent1, sent2 = input_line.split("\t")
         samples.append(InputExample(texts=[sent1, sent2], label=float(label_line)/scale))
     return samples
-
-def eval_chinese_dataset(model, dataset_name, batch_size=16, output_path="./", main_similarity=None):
-    logging.info(f"Evaluation on chinese STS task {dataset_name}")
-    all_samples = load_chinese_tsv_data(dataset_name, "test")
-    results = {}
-    logging.info(f"Loaded test examples from {dataset_name} dataset, total {len(all_samples)} examples")
-    
-    evaluator = EmbeddingSimilarityEvaluator.from_input_examples(all_samples, batch_size=batch_size, name=dataset_name, main_similarity=main_similarity)
-    best_result = evaluator(model, output_path=output_path)
-    logging.info(f"Results on {dataset_name}: {best_result:.6f}")
-    results["all"] = {
-        "num_samples": len(all_samples),
-        "best_spearman_joint": best_result
-    }
-    with open(os.path.join(output_path, f"{dataset_name}-results.json"), "w") as f:
-        json.dump(results, f, indent=4, ensure_ascii=False)
-    return best_result
 
 def eval_sts(model, year, dataset_names, batch_size=16, output_path="./", main_similarity=None):
     logging.info(f"Evaluation on STS{year} dataset")
@@ -203,21 +185,6 @@ def eval_nli_unsup(model_path, main_similarity=None, last2avg=False, firstlastav
         "average": score_avg
     }, open(os.path.join(output_path, "summary.json"), "w"), indent=4)
     return score_avg
-
-def eval_chinese_unsup(model_path, dataset_name, batch_size=16, main_similarity=None, last2avg=False, firstlastavg=False):
-    model = load_model(model_path, last2avg=last2avg, firstlastavg=firstlastavg)
-    if last2avg:
-        output_path = os.path.join(model_path, "chinese_last2")
-    elif firstlastavg:
-        output_path = os.path.join(model_path, "chinese_first_last")
-    else:
-        output_path = os.path.join(model_path, "chinese_last1")
-        
-    if not os.path.exists(output_path):
-        os.mkdir(output_path)
-    
-    score = eval_chinese_dataset(model, dataset_name, batch_size=batch_size, output_path=output_path, main_similarity=main_similarity)
-    return score
 
 
 if __name__ == "__main__":
