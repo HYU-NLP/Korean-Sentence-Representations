@@ -1,3 +1,4 @@
+from cmath import cos
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -8,7 +9,7 @@ from datetime import datetime
 
 import pandas as pd
 import torch
-from torch import nn
+from torch import cosine_similarity, nn
 from torch.optim import AdamW
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
@@ -73,54 +74,72 @@ class BertForSupervisedSimCse(nn.Module):
         cos_sim = torch.cat([z1_z2_cos, z1_z3_cos], dim=1)
         return cos_sim
     
-    def encoder(self, input_ids, attention_mask, token_type_ids, **kwargs):
-        batch_size = input_ids.shape[0]
+    def encoder(self, batch, **kwargs):
+        # batch_size = input_ids.shape[0]
 
-        # flat, (batch_size * 3, seq_len)
-        input_ids = input_ids.view((-1, input_ids.shape[-1]))
-        attention_mask = attention_mask.view((-1, input_ids.shape[-1]))
-        token_type_ids = token_type_ids.view((-1, input_ids.shape[-1]))
+        # # flat, (batch_size * 3, seq_len)
+        # input_ids = input_ids.view((-1, input_ids.shape[-1]))
+        # attention_mask = attention_mask.view((-1, input_ids.shape[-1]))
+        # token_type_ids = token_type_ids.view((-1, input_ids.shape[-1]))
 
-        # encode, (batch_size * 3, hidden_size)
-        _, pooler_out = self.bert(input_ids, attention_mask, token_type_ids, return_dict=False)
-        
-        # if self.add_mlp_layer:
-        #     pooler_out = self.mlp_layer(pooler_out) # batch, hiddensize(24, 768)
-        
-        # #pooler_out = pooler_out.view((batch_size, 2, pooler_out.shape[-1]))
-        #z1, z2 = pooler_out[:,0], pooler_out[:,1]
-        #cos_sim = self.cosine_similarity(z1.unsqueeze(1), z2.unsqueeze(0)) / self.temperature
-        linear_out = self.linear(pooler_out) # 24, 1
-        sig_out = self.sigmoid(linear_out) * 5
-        
-        #print("ok")
-        return sig_out #.squeeze()
+        # # encode, (batch_size * 3, hidden_size)
+        # _, pooler_out = self.bert(input_ids, attention_mask, token_type_ids, return_dict=False)
+        input_ids_1, attention_mask_1, token_type_ids_1 = batch['input_ids_1'], batch['attention_mask_1'], batch['token_type_ids_1']
+        input_ids_2, attention_mask_2, token_type_ids_2 = batch['input_ids_2'], batch['attention_mask_2'], batch['token_type_ids_2']
+        _, pooler_out_1 = self.bert(input_ids_1, attention_mask_1, token_type_ids_1, return_dict=False)
+        _, pooler_out_2 = self.bert(input_ids_2, attention_mask_2, token_type_ids_2, return_dict=False)
+        # linear_out_1 = self.linear(pooler_out_1)
+        # linear_out_2 = self.linear(pooler_out_2)
+        # activation_out_1 = self.sigmoid(linear_out_1)
+        # activation_out_2 = self.sigmoid(linear_out_2)
+        return pooler_out_1.squeeze(), pooler_out_2.squeeze()
+
 
 
 class SupervisedSimCseDataset(Dataset):
-    def __init__(self, data_frame, tokenizer, max_length, column_names=None):
+    def __init__(self, mode, data_frame, tokenizer, max_length, column_names=None):
         if column_names is None:
-            column_names = ['sent0', 'sent1', 'hard_neg']
-
+            if mode == "train" :
+                column_names = ['sent0', 'sent1', 'hard_neg']
+            elif mode == "val" :
+                column_names = ['sentence1', 'sentence2', 'label']
+                
         self.len = len(data_frame)
         self.data_frame = data_frame
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.column_names = column_names
+        self.mode = mode
 
     def __len__(self):
         return self.len
 
     def __getitem__(self, idx):
-        premise = self.tokenizer(self.data_frame[self.column_names[0]][idx], padding='max_length', max_length=self.max_length, truncation=True, return_tensors="pt")
-        hypothesis = self.tokenizer(self.data_frame[self.column_names[1]][idx], padding='max_length', max_length=self.max_length, truncation=True, return_tensors="pt")
-        hard_neg = self.tokenizer(self.data_frame[self.column_names[2]][idx], padding='max_length', max_length=self.max_length, truncation=True, return_tensors="pt")
+        self.total = {}
+        if self.mode == "train" :
+            premise = self.tokenizer(self.data_frame[self.column_names[0]][idx], padding='max_length', max_length=self.max_length, truncation=True, return_tensors="pt")
+            hypothesis = self.tokenizer(self.data_frame[self.column_names[1]][idx], padding='max_length', max_length=self.max_length, truncation=True, return_tensors="pt")
+            hard_neg = self.tokenizer(self.data_frame[self.column_names[2]][idx], padding='max_length', max_length=self.max_length, truncation=True, return_tensors="pt")
 
-        return {
-            'input_ids': torch.stack((premise['input_ids'].squeeze(), hypothesis['input_ids'].squeeze(), hard_neg['input_ids'].squeeze())),
-            'attention_mask': torch.stack((premise['attention_mask'].squeeze(), hypothesis['attention_mask'].squeeze(), hard_neg['attention_mask'].squeeze())),
-            'token_type_ids': torch.stack((premise['token_type_ids'].squeeze(), hypothesis['token_type_ids'].squeeze(), hard_neg['token_type_ids'].squeeze())),
-        }
+            return {
+                'input_ids': torch.stack((premise['input_ids'].squeeze(), hypothesis['input_ids'].squeeze(), hard_neg['input_ids'].squeeze())),
+                'attention_mask': torch.stack((premise['attention_mask'].squeeze(), hypothesis['attention_mask'].squeeze(), hard_neg['attention_mask'].squeeze())),
+                'token_type_ids': torch.stack((premise['token_type_ids'].squeeze(), hypothesis['token_type_ids'].squeeze(), hard_neg['token_type_ids'].squeeze())),
+            }
+        elif self.mode == "val" :
+            self.total = {}
+            self.sentence1_tokens = self.tokenizer(self.data_frame['sentence1'][idx], truncation=True, padding="max_length", max_length=self.max_length, return_tensors="pt")
+            self.sentence2_tokens = self.tokenizer(self.data_frame['sentence2'][idx], truncation=True, padding="max_length", max_length=self.max_length, return_tensors="pt")
+            # sentence1
+            self.total['input_ids_1'] = self.sentence1_tokens['input_ids'].squeeze()
+            self.total['token_type_ids_1'] = self.sentence1_tokens['token_type_ids'].squeeze()
+            self.total['attention_mask_1'] = self.sentence1_tokens['attention_mask'].squeeze()
+            # sentence2
+            self.total['input_ids_2'] = self.sentence2_tokens['input_ids'].squeeze()
+            self.total['token_type_ids_2'] = self.sentence2_tokens['token_type_ids'].squeeze()
+            self.total['attention_mask_2'] = self.sentence2_tokens['attention_mask'].squeeze()
+            self.total['labels'] = torch.Tensor(self.data_frame['label'])[idx]
+            return self.total
 
 
 def save_model_config(path, model_name, model_state_dict, model_config_dict):
@@ -146,15 +165,17 @@ def evaluate_model (device, dataloader, model, fn_loss, fn_score):
     
     model.eval()
     with torch.no_grad():
-        for batch in dataloader : # sts-b
-            batch = {k: v.long().to(device) for k, v in batch.items()}
+        for val_batch in dataloader : # sts-b
+            val_batch = {k: v.to(device) for k, v in val_batch.items()}
             # labels = batch['labels'].to(device)
-            predict = model.encoder(**batch) # 24,1
-            loss = fn_loss (predict.squeeze().unsqueeze(0), batch['labels'].float().unsqueeze(0)) #batch['labels].size() = torch.size([24])
+            emb1, emb2 = model.encoder(val_batch) # 24,1
+            cos_sim = cosine_similarity(emb1, emb2)
+            
+            loss = fn_loss (cos_sim.unsqueeze(0), val_batch['labels'].unsqueeze(0)) #batch['labels].size() = torch.size([24]) #.float().unsqueeze(0)
             
             eval_loss += loss.item()
-            eval_pred.extend(predict.clone().cpu().tolist())
-            eval_label.extend(batch['labels'].clone().cpu().tolist())
+            eval_pred.extend(cos_sim.clone().cpu().tolist())
+            eval_label.extend(val_batch['labels'].clone().cpu().tolist())
         
     eval_score = fn_score(eval_pred, eval_label) 
     return eval_score, eval_loss
@@ -173,14 +194,14 @@ def pretrain_model(epochs, device, train_dataloader, validation_dataloader, mode
         train_loss = 0
 
         for i, batch in enumerate(tqdm(train_dataloader)):
-            input_ids = batch['input_ids'].long().to(device)
-            attention_mask = batch['attention_mask'].long().to(device)
-            token_type_ids = batch['token_type_ids'].long().to(device)
-            labels = torch.arange(batch['input_ids'].shape[0]).long().to(device) 
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            token_type_ids = batch['token_type_ids'].to(device)
+            labels = torch.arange(batch['input_ids'].shape[0]).to(device) 
 
             optimizer.zero_grad()
             predict = model(input_ids, attention_mask, token_type_ids)
-            loss = fn_loss(predict, labels)
+            loss = fn_loss(predict, labels) #labels.to(torch.longtensor()) -> label long으로 하기 
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -191,9 +212,11 @@ def pretrain_model(epochs, device, train_dataloader, validation_dataloader, mode
                 if val_score > best_val_score :
                     best_model = copy.deepcopy(model)
                     best_val_score = val_score
-
+                    
                 print(f"\n{epoch}th epoch Validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
-            model_save_fn(args, best_model)
+    
+    model_save_fn(args, best_model) 
+    
     return best_model
 
 
@@ -245,18 +268,25 @@ def main():
         
         tokenizer = BertTokenizer.from_pretrained(model_name)
         
-        def encode_input(examples):
-            encoded = tokenizer(examples['sentence1'], examples['sentence2'], max_length=seq_max_length, truncation=True, padding='max_length')
-            encoded['input_ids'] = list(map(float, encoded['input_ids']))
-            return encoded
+        # def encode_input1(examples):
+        #     encoded = tokenizer(examples['sentence1'], max_length=seq_max_length, truncation=True, padding='max_length')
+        #     encoded['input_ids'] = list(map(float, encoded['input_ids']))
+        #     return encoded
 
-        def format_output(example):
-            return {'labels': example['label']}
+        # def encode_input2(examples):
+        #     encoded = tokenizer(examples['sentence2'], max_length=seq_max_length, truncation=True, padding='max_length')
+        #     encoded['input_ids'] = list(map(float, encoded['input_ids']))
+        #     return encoded
+
+        # def format_output(example):
+        #     return {'labels': example['label']}
  
         
-        train_dataset = SupervisedSimCseDataset(df_train, tokenizer, seq_max_length)
-        validation_dataset = df_val.map(encode_input).map(format_output)
-        validation_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'labels'])
+        train_dataset = SupervisedSimCseDataset("train", df_train, tokenizer, seq_max_length)
+        validation_dataset = SupervisedSimCseDataset("val", df_val, tokenizer, seq_max_length)
+        # validation_dataset1 = df_val.map(encode_input1).map(format_output)
+        # validation_dataset2 = df_val.map(encode_input2).map(format_output)
+        # validation_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'labels'])
         
         train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
         validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size)
