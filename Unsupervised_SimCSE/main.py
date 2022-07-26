@@ -116,12 +116,13 @@ def get_score(output, label):
     score = stats.spearmanr(output, label)[0]
     return score
 
-def cosine_similarity(embeddings1, embeddings2, temperature=0.05):
+def cosine_similarity(embeddings1, embeddings2, temperature=0.05): # sentence embedding size : [batch_size, 768]
     unit_embed1 = embeddings1 / torch.norm(embeddings1) # anchor embedding
     unit_embed2 = embeddings2 / torch.norm(embeddings2) # positive embedding
     similarity = torch.matmul(unit_embed1, torch.transpose(unit_embed2, 0, 1)) / temperature
-    # BERT를 통과해 나온 output이므로  batch_size개의sentence embedding size는 [batch_size, 768]
-    return similarity
+    # similarity = nn.CosineSimilarity(dim=1)
+    # cos_sim = similarity(embeddings1, embeddings2) / temperature
+    return cos_sim
 
 def save_model_config(path, model_name, model_state_dict, model_config_dict):
     dirname = os.path.dirname(path)
@@ -134,7 +135,7 @@ def save_model_config(path, model_name, model_state_dict, model_config_dict):
     
 def model_save_fn(args, pretrained_model):
     if pretrained_model != None : 
-        save_model_config(f'checkpoint/{args.model_state_name}', args.model_name, pretrained_model.bert.state_dict(), pretrained_model.bert.config.to_dict())
+        save_model_config(f'Proj-Sentence-Representation/Unsupervised_SimCSE/checkpoint/{args.model_state_name}', args.model_name, pretrained_model.bert.state_dict(), pretrained_model.bert.config.to_dict())
     
 def unsupervised_train(args, train_dataloader, validation_dataloader, model, loss_fn):
     device = args.device
@@ -165,6 +166,7 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
             else : 
                 labels = torch.arange(cos_sim.size(0))
             
+            # loss = loss_fn(cos_sim, labels.type(torch.FloatTensor).to(device))
             loss = loss_fn(cos_sim, labels.to(device))
             loss.backward()
             optimizer.step()
@@ -189,8 +191,10 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
                             val_labels = torch.tensor(0)
                         else : 
                             val_labels = torch.arange(val_cos_sim.size(0))
+                        # val_loss = loss_fn(val_cos_sim, val_labels.type(torch.FloatTensor).to(device))
                         val_loss = loss_fn(val_cos_sim, val_labels.to(device))
                         # val_loss += loss.item()
+                        # val_pred.extend(val_cos_sim.clone().cpu().tolist())
                         val_pred.extend(torch.diagonal(val_cos_sim).clone().cpu().tolist())
                         val_label.extend(val_batch['labels'].clone().cpu().tolist())
 
@@ -204,7 +208,7 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='bert-base-cased', type=str)
+    parser.add_argument('--model_name', default='bert-base-uncased', type=str)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--seq_max_length', default=32, type=int)
     parser.add_argument('--epochs', default=1, type=int)
