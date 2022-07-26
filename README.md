@@ -6,6 +6,6 @@
 
 # How to run ConSERT on SentEval
 
-1. Run `ConSERT/data/get_transfer_data.bash`
+1. Run `bash ConSERT/data/get_transfer_data.bash`
 2. Download pre-trained BERT from https://huggingface.co/bert-base-uncased
-3. Run bash files. eg) 'bash scripts/unsup-consert-base.sh'
+3. Run bash files. eg) `bash scripts/unsup-consert-base.sh`

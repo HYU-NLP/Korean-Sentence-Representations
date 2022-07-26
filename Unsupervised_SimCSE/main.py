@@ -117,11 +117,10 @@ def get_score(output, label):
     return score
 
 def cosine_similarity(embeddings1, embeddings2, temperature=0.05):
-    # unit_embed1 = embeddings1 / torch.norm(embeddings1)
-    # unit_embed2 = embeddings2 / torch.norm(embeddings2)
-    # similarity = torch.matmul(unit_embed1, unit_embed2) / temperature
+    unit_embed1 = embeddings1 / torch.norm(embeddings1) # anchor embedding
+    unit_embed2 = embeddings2 / torch.norm(embeddings2) # positive embedding
+    similarity = torch.matmul(unit_embed1, torch.transpose(unit_embed2, 0, 1)) / temperature
     # BERT를 통과해 나온 output이므로  batch_size개의sentence embedding size는 [batch_size, 768]
-    similarity = nn.CosineSimilarity()(embeddings1, embeddings2) / temperature
     return similarity
 
 def save_model_config(path, model_name, model_state_dict, model_config_dict):
@@ -146,8 +145,6 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
 
     model.to(device)
     loss_fn.to(device)
-    val_loss = 0
-    val_score = 0
     best_val_score = 0
     best_model = None
     
@@ -164,12 +161,11 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
 
             cos_sim = cosine_similarity(output1, output2, temperature)
             if cos_sim.dim() == 0 : 
-                labels = torch.tensor(0).to(device)
+                labels = torch.tensor(0)
             else : 
-                labels = torch.arange(cos_sim.size(0)).to(device)
+                labels = torch.arange(cos_sim.size(0))
             
-            # 0차원 또는 1차원 텐서 입력
-            loss = loss_fn(cos_sim, labels.type(torch.FloatTensor).to(device))
+            loss = loss_fn(cos_sim, labels.to(device))
             loss.backward()
             optimizer.step()
             
@@ -180,6 +176,8 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
                 with torch.no_grad():
                     val_pred = []
                     val_label = []
+                    val_loss = 0
+                    val_score = 0
 
                     for _, val_batch in enumerate(tqdm(validation_dataloader)):
                         val_batch = {k: v.to(device) for k, v in val_batch.items()}
@@ -188,15 +186,18 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
                         
                         if val_cos_sim.dim() == 0 : 
                             val_cos_sim = val_cos_sim.unsqueeze(dim=0)
-                        loss = loss_fn(val_cos_sim, val_batch['labels'].type(torch.FloatTensor).to(device))
-                        val_loss += loss.item()
-                        val_pred.extend(val_cos_sim.clone().cpu().tolist())
+                            val_labels = torch.tensor(0)
+                        else : 
+                            val_labels = torch.arange(val_cos_sim.size(0))
+                        val_loss = loss_fn(val_cos_sim, val_labels.to(device))
+                        # val_loss += loss.item()
+                        val_pred.extend(torch.diagonal(val_cos_sim).clone().cpu().tolist())
                         val_label.extend(val_batch['labels'].clone().cpu().tolist())
 
-                        val_score = get_score(np.array(val_pred), np.array(val_label))
-                        if best_val_score < val_score:
-                            best_val_score = val_score
-                            best_model = copy.deepcopy(model)
+                    val_score = get_score(np.array(val_pred), np.array(val_label))
+                    if best_val_score < val_score:
+                        best_val_score = val_score
+                        best_model = copy.deepcopy(model)
 
                 print(f"\n\t validation loss / cur_val_score / best_val_score : {val_loss} / {val_score} / {best_val_score}")
     return best_model
