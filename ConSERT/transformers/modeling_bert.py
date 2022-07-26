@@ -839,6 +839,8 @@ class BertModel(BertPreTrainedModel):
         # Custom added, for data augmentation
         self._most_recent_embedding_output = embedding_output  # every time call forward, record the embedding output here
         embedding_output = self._replace_embedding_output(embedding_output, attention_mask)  # replace the embedding output, using different data augmentation strategies
+        print(embedding_output)
+        print(embedding_output.shape)
         # ----- Custom added END ------------
 
         encoder_outputs = self.encoder(
@@ -864,7 +866,7 @@ class BertModel(BertPreTrainedModel):
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
         )
-
+    ########## ADDED ###########
     # custom added functions for data augmentation
     def set_flag(self, key: str, value: Any):
         assert f"flag__{key}" not in self.__dict__
@@ -938,7 +940,6 @@ class BertModel(BertPreTrainedModel):
             return position_ids
 
 
-    ########## ADDED ###########
     def _cutoff_embeddings(self, embedding_output, attention_mask, direction, rate):
         bsz, seq_len, emb_size = embedding_output.shape
         cutoff_embeddings = []
@@ -961,7 +962,7 @@ class BertModel(BertPreTrainedModel):
             # cutoff_embedding = [seq_len, dim]
         cutoff_embeddings = torch.cat(cutoff_embeddings, 0)
         return cutoff_embeddings
-        ########## ADDED ###########
+    ########## ADDED ###########
 
 
 @add_start_docstrings(
