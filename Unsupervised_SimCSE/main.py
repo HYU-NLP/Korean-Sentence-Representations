@@ -47,7 +47,7 @@ class BertForUnsupervisedSimCSE(nn.Module):
 class wikiDataset(Dataset):
     def __init__(self, example_text, args, tokenizer):
         self.args = args
-        if example_text == True:
+        if example_text == True: # 4개 말고 50 ~ 100개 정도로 늘여서 실험
             data = [
             "chocolates are my favourite items.",
             "The fish dreamed of escaping the fishbowl and into the toilet where he saw his friend go.",
@@ -122,7 +122,7 @@ def cosine_similarity(embeddings1, embeddings2, temperature=0.05): # sentence em
     similarity = torch.matmul(unit_embed1, torch.transpose(unit_embed2, 0, 1)) / temperature
     # similarity = nn.CosineSimilarity(dim=1)
     # cos_sim = similarity(embeddings1, embeddings2) / temperature
-    return cos_sim
+    return similarity
 
 def save_model_config(path, model_name, model_state_dict, model_config_dict):
     dirname = os.path.dirname(path)
@@ -172,6 +172,7 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
             optimizer.step()
             
             if (step + 1) % 250 == 0 or step == len(train_dataloader) - 1:
+                print(f"Diagonal : {torch.diagonal(cos_sim)}")
                 print(f'\n[Iteration {step + 1}] train loss: ({loss:.4})')
 
                 model.eval()
@@ -184,7 +185,9 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
                     for _, val_batch in enumerate(tqdm(validation_dataloader)):
                         val_batch = {k: v.to(device) for k, v in val_batch.items()}
                         val_output1, val_output2 = model(val_batch)
-                        val_cos_sim = cosine_similarity(val_output1, val_output2, temperature)
+                        # train에선 temperature를 넣지만 여기선 그러면 안됨
+                        # train에서 embedding 간 거리 조절을 위해 넣은거지 validation에서는 그럴 필요가 없음
+                        val_cos_sim = cosine_similarity(val_output1, val_output2, temperature=1)
                         
                         if val_cos_sim.dim() == 0 : 
                             val_cos_sim = val_cos_sim.unsqueeze(dim=0)
@@ -192,7 +195,9 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
                         else : 
                             val_labels = torch.arange(val_cos_sim.size(0))
                         # val_loss = loss_fn(val_cos_sim, val_labels.type(torch.FloatTensor).to(device))
-                        val_loss = loss_fn(val_cos_sim, val_labels.to(device))
+                        # val_loss = loss_fn(val_cos_sim, val_labels.to(device))
+                        # val_loss로 똑같이 할 수 없으니까 spearman correlation으로 metric을 정한 것
+                        # 따라서 val_loss의 가치가 없음
                         # val_loss += loss.item()
                         # val_pred.extend(val_cos_sim.clone().cpu().tolist())
                         val_pred.extend(torch.diagonal(val_cos_sim).clone().cpu().tolist())
@@ -207,7 +212,8 @@ def unsupervised_train(args, train_dataloader, validation_dataloader, model, los
     return best_model
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser() # 원래 setting을 변형해서라도 train loss가 유의미하게 떨어지는지 확인
+    # 원 논문에선 저게 best라니 똑같이 시도해보고 만약 아니면 우리가 이 parameter를 직접 조정해서 성능 향상시켜야지
     parser.add_argument('--model_name', default='bert-base-uncased', type=str)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--seq_max_length', default=32, type=int)
