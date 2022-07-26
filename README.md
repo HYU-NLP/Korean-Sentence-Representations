@@ -8,6 +8,6 @@
 
 # ConSERT
 
-1. Run `data/get_transfer_data.bash`
+1. Run `bash data/get_transfer_data.bash`
 2. Download pre-trained BERT from https://huggingface.co/bert-base-uncased
 3. Run bash files.     eg) `bash scripts/unsup-consert-base.sh`
