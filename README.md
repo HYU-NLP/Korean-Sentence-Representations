@@ -10,4 +10,4 @@
 2. Run `cd data && bash get_transfer_data.bash`
 3. Download pre-trained BERT from https://huggingface.co/bert-base-uncased
    :Note that `bert-base-uncased` has to be located in ConSERT/.
-4. Run bash files  eg) `bash commands/unsup-consert-base.sh`
+4. Run bash files to train models `bash commands/unsup-consert-base.sh`
