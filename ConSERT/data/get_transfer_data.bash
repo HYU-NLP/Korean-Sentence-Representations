@@ -134,3 +134,5 @@ done
 
 # remove moses folder
 rm -rf mosesdecoder
+
+mkdir ../output

@@ -839,6 +839,8 @@ class BertModel(BertPreTrainedModel):
         # Custom added, for data augmentation
         self._most_recent_embedding_output = embedding_output  # every time call forward, record the embedding output here
         embedding_output = self._replace_embedding_output(embedding_output, attention_mask)  # replace the embedding output, using different data augmentation strategies
+        print(embedding_output)
+        print(embedding_output.shape)
         # ----- Custom added END ------------
 
         encoder_outputs = self.encoder(

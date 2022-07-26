@@ -1,0 +1,1 @@
+nohup python3 -u consert_qmin_main.py --model_name_or_path ./bert-base-uncased/ --seed 1  --gpu 1 --batch_size 64 --train_way sup --max_seq_length 64 --evaluation_steps 200 --model_save_path ./output/sup-sbert-base --force_del > sup-sbert-base.out &

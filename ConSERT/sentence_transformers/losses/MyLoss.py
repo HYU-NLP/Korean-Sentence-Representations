@@ -10,7 +10,7 @@ import copy
 # for masking
 LARGE_NUM = 1e9
 
-class myLoss(nn.Module):
+class MyLoss(nn.Module):
     def __init__(self,
                 args,
                  model: SentenceTransformer,
@@ -21,7 +21,7 @@ class myLoss(nn.Module):
                  contrastive_loss_rate: float = 1.0,  # alpha in the paper in joint                
                  temperature: float = 1.0,                              
                 ):
-        super(myLoss, self).__init__()
+        super(MyLoss, self).__init__()
         self.model = model
         self.num_labels = num_labels
         self.args= args
