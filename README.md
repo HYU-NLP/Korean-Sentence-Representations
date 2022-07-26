@@ -18,6 +18,6 @@ SentenceTransformer.py : inheriting two modules ,Transformer and Pooling, and th
 Transformer.py : fetching the pretrained_model 'BERT' and getting representations      
 Pooling.py : averaging the representations from Transformer and they become the sentence representation      
 MyLoss.py : implementing contrastive loss for unsupervision, and crossentropy for supervision      
-modeling_bert.py : depending on data augmentation strategies, changing input embeddings before passing through bert layers       
-see code line 713~965 for details    
+modeling_bert.py : depending on data augmentation strategies, changing input embeddings before passing through bert layers (see codes line 713~965 for details)
+    
 
