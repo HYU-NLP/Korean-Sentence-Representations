@@ -12,5 +12,14 @@ __pycache__/
 *.txt
 
 # data files
-data/senteval_data*
-data/downstream/
+data/downstream/senteval_data.tar
+data/downstream/CR
+data/downstream/MPQA
+data/downstream/MR
+data/downstream/MRPC
+data/downstream/SICK
+data/downstream/SNLI
+data/downstream/SST
+data/downstream/STS
+data/downstream/SUBJ
+data/downstream/TREC
