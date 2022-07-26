@@ -1,1 +1,0 @@
-nohup python3 -u consert_qmin_main.py --gpu 2 --model_name_or_path ./bert-base-uncased/ --seed 1 --batch_size 48 --max_seq_length 64 --evaluation_steps 200 --temperature 0.1 --data_aug_strategy1 shuffle --data_aug_strategy2 feature_cutoff --cutoff_rate 0.1 --train_way joint --model_save_path ./output/sup-consert-joint-base --force_del > sup-consert-joint-base.out &
