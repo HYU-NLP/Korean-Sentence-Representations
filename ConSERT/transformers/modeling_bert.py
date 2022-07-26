@@ -866,7 +866,7 @@ class BertModel(BertPreTrainedModel):
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
         )
-
+    ########## ADDED ###########
     # custom added functions for data augmentation
     def set_flag(self, key: str, value: Any):
         assert f"flag__{key}" not in self.__dict__
@@ -940,7 +940,6 @@ class BertModel(BertPreTrainedModel):
             return position_ids
 
 
-    ########## ADDED ###########
     def _cutoff_embeddings(self, embedding_output, attention_mask, direction, rate):
         bsz, seq_len, emb_size = embedding_output.shape
         cutoff_embeddings = []
@@ -963,7 +962,7 @@ class BertModel(BertPreTrainedModel):
             # cutoff_embedding = [seq_len, dim]
         cutoff_embeddings = torch.cat(cutoff_embeddings, 0)
         return cutoff_embeddings
-        ########## ADDED ###########
+    ########## ADDED ###########
 
 
 @add_start_docstrings(
