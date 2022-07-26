@@ -14,9 +14,9 @@
 
 #### Implementation detalis
 
-SentenceTransformer.py : inheriting two modules ,Transformer and Pooling, and there exist other functions such as `fit` to train the model
-Transformer.py : fetching the pretrained_model 'BERT' and getting representations
-Pooling.py : averaging the representations from Transformer and they become the sentence representation
-MyLoss.py : implementing contrastive loss for unsupervision, and crossentropy for supervision 
-modeling_bert.py : depending on data augmentation strategies, processing input before passing through bert
+SentenceTransformer.py : inheriting two modules ,Transformer and Pooling, and there exist other inner functions such as `fit` to train the model, `encode` to eval the model              
+Transformer.py : fetching the pretrained_model 'BERT' and getting representations      
+Pooling.py : averaging the representations from Transformer and they become the sentence representation      
+MyLoss.py : implementing contrastive loss for unsupervision, and crossentropy for supervision      
+modeling_bert.py : depending on data augmentation strategies, processing input before passing through bert      
 
