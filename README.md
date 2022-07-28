@@ -15,11 +15,11 @@
 
 #### Implementation detalis
 
-SentenceTransformer.py : inheriting two modules ,Transformer and Pooling, and there exist other inner functions such as `fit` to train the model, `encode` to eval the model              
+SentenceTransformer.py : inheriting two modules ,Transformer and Pooling, and there exist other inner functions such as `fit` to train the model, `encode` to eval the model    
 Transformer.py : fetching the pretrained_model 'BERT' and getting representations      
 Pooling.py : averaging the representations from Transformer and they become the sentence representation      
 MyLoss.py : implementing contrastive loss for unsupervision, and crossentropy for supervision      
-modeling_bert.py : depending on data augmentation strategies, changing input embeddings before passing through bert layers (see codes line 713~965 for details)     
+modeling_bert.py : depending on data augmentation strategies, perturbating input embeddings before passing through bert layers (see codes line 713~965 for details)     
 
 
 #### Result
@@ -27,7 +27,7 @@ modeling_bert.py : depending on data augmentation strategies, changing input emb
 |              | **Model**   | **STS12** | **STS13** | **STS14** | **STS15** | **STS16** | **STSb** | **SICK-R** | **Avg.** |
 |--------------|-------------|-----------|-----------|-----------|-----------|-----------|----------|------------|----------|
 | **BASELINE** | unsup       | 64.64     | 78.49     | 69.07     | 79.72     | 75.95     | 73.97    | 67.31      | 72.74    |
-| **re-imple** | unsup       | 64.63     | 78.22     | 68.92     | 79.42     | 75.53     | 73.64    | 66.84      | 72.46    |
+| **re-imple** | unsup       | 64.69     | 78.56     | 69.01     | 79.70     | 75.77     | 73.86    | 67.15      | 72.68    |
 | **BASELINE** | sup         | 69.93     | 76        | 72.15     | 78.59     | 73.53     | 76.1     | 73.01      | 74.19    |
 | **re-imple** | sup         | 69.6      | 73.1      | 70.72     | 77.51     | 73.51     | 75.46    | 72.48      | 73.2     |
 | **BASELINE** | sup-unsup   | 73.02     | 84.86     | 77.32     | 82.7      | 78.2      | 81.34    | 75         | 78.92    |
