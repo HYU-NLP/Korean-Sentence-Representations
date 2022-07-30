@@ -47,7 +47,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=96, help="Training mini-batch size")
     parser.add_argument("--num_epochs", type=int, default=10, help="Number of training epochs") # if consecutive is on, num_epochs = 1
     parser.add_argument("--learning_rate", type=float, default=2e-5, help="The learning rate")
-    parser.add_argument("--evaluation_steps", type=int, default=1000, help="The steps between every evaluations")
+    parser.add_argument("--evaluation_steps", type=int, default=200, help="The steps between every evaluations")
     parser.add_argument("--max_seq_length", type=int, default=128, help="The max sequence length")
     
     parser.add_argument("--cutoff_rate", type=float, default=0.2, help="The rate of cutoff strategy, in (0.0, 1.0)")
@@ -60,6 +60,10 @@ def main():
 
     parser.add_argument("--patience", default=None, type=int, help="The patience for early stop")
 
+    # should've used apex for batch size
+    parser.add_argument("--use_apex_amp", action="store_false", help="Use apex amp or not")
+    parser.add_argument("--apex_amp_opt_level", type=str, default="O1", help="The opt_level argument in apex amp")
+
     ################# ADDED #################
     parser.add_argument('--gpu', default=0, type=int) 
     parser.add_argument('--train_way', default='unsup', type=str, choices=["unsup", "joint", "sup-unsup", "joint-unsup", "sup"])
@@ -68,7 +72,7 @@ def main():
     setattr(args, 'device', f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
     #setattr(args, 'time', datetime.datetime.now().strftime('%Y%m%d-%H:%M:%S'))
 
-    if args.train_way in ["unsup", "joint-unsup", "sup", "sup-unsup"]:
+    if args.train_way in ["unsup", "joint-unsup", "sup-unsup"]:
         setattr(args, 'no_pair', True)
         setattr(args, 'no_dropout', True)
 
@@ -181,7 +185,7 @@ def main():
     num_epochs = args.num_epochs
 
     model.num_steps_total = math.ceil(len(train_dataset) * num_epochs / train_batch_size)
-    warmup_steps = math.ceil(len(train_dataset) * num_epochs / train_batch_size * 0.1) #10% of train data for warm-up
+    warmup_steps = math.ceil(len(train_dataset) * num_epochs / train_batch_size * 0.1) # 10% of train data for warm-up
     logging.info("Warmup-steps: {}".format(warmup_steps))
 
     # Train the model
@@ -193,25 +197,14 @@ def main():
               warmup_steps=warmup_steps,
               output_path=model_save_path,
               # we could make use of apex
+              use_apex_amp=args.use_apex_amp,
+              apex_amp_opt_level = args.apex_amp_opt_level,
               early_stop_patience=args.patience)
 
-    # Test on STS Benchmark
-    test_samples = []
-    with gzip.open(sts_dataset_path, 'rt', encoding='utf8') as fIn:
-        reader = csv.DictReader(fIn, delimiter='\t', quoting=csv.QUOTE_NONE)
-        for row in reader:
-            if row['split'] == 'test':
-                score = float(row['score']) / 5.0 #Normalize score to range 0 ... 1
-                test_samples.append(InputExample(texts=[row['sentence1'], row['sentence2']], label=score))
-    
-    model = SentenceTransformer(model_save_path) # this becomes the best model
-    test_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(test_samples, batch_size=train_batch_size, name='sts-test', main_similarity=SimilarityFunction.COSINE)
-    test_evaluator(model, output_path=model_save_path)
+    # Test
+    eval.eval_nli_unsup(model_save_path, main_similarity=SimilarityFunction.COSINE,last2avg=True)
 
 
-    # Test on unsupervised dataset (mainly STS related dataset)
-    # train한 데이터 그대로 쓰는건가?? 확인하기
-    eval.eval_nli_unsup(model_save_path, main_similarity=SimilarityFunction.COSINE)
     
 
 

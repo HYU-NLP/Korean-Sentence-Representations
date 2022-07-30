@@ -49,10 +49,10 @@ class Transformer(nn.Module):
                 })
         
         output_states = self.auto_model(**features)
+        # output_states = (last_layer, last_pooled_output, all_layers)
         output_tokens = output_states[0]
         #[batch, seq_len, dim]
 
-        # output_states = ([batch, seq_len, dim], [batch, dim])
 
         cls_tokens = output_tokens[:, 0, :]  # CLS token is first token
         # cls_tokens = [batch, dim]
@@ -60,7 +60,7 @@ class Transformer(nn.Module):
 
         if self.auto_model.config.output_hidden_states:
             all_layer_idx = 2
-            if len(output_states) < 3: #Some models only output last_hidden_states and all_hidden_states
+            if len(output_states) < 3: # Some models only output last_hidden_states and all_hidden_states
                 all_layer_idx = 1
 
             hidden_states = output_states[all_layer_idx]

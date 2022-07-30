@@ -121,7 +121,7 @@ class SentenceTransformer(nn.Sequential):
 
         super().__init__(modules)
         if device is None:
-            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            device = "cuda:3" if torch.cuda.is_available() else "cpu"
             logging.info("Use pytorch device: {}".format(device))
 
         self._target_device = torch.device(device)
@@ -162,7 +162,6 @@ class SentenceTransformer(nn.Sequential):
 
         if device is None:
             device = self._target_device
-
         self.to(device)
 
         all_embeddings = []
@@ -595,9 +594,13 @@ class SentenceTransformer(nn.Sequential):
                         skip_scheduler = scaler.get_scale() != scale_before_step
                     else:
                         loss_value = loss_model(features, labels) ##########이부분 ADVCL loss forward 하는부분이여서 이부분 자세히 디버깅하면될듯
-                    
-                        loss_value.backward()
-                        torch.nn.utils.clip_grad_norm_(loss_model.parameters(), max_grad_norm)
+                        if use_apex_amp:
+                            with amp.scale_loss(loss_value, optimizer) as scaled_loss_value:
+                                scaled_loss_value.backward()
+                            torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), max_grad_norm)
+                        else:
+                            loss_value.backward()
+                            torch.nn.utils.clip_grad_norm_(loss_model.parameters(), max_grad_norm)
                         optimizer.step()
 
                     optimizer.zero_grad()

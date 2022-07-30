@@ -28,6 +28,8 @@ class Pooling(nn.Module):
                  pooling_mode_max_tokens: bool = False,
                  pooling_mode_mean_tokens: bool = True,    #Consert uses mean_tokens
                  pooling_mode_mean_sqrt_len_tokens: bool = False,
+                 pooling_mode_mean_last_2_tokens: bool = False,
+
                  ):
         super(Pooling, self).__init__()
 
@@ -35,9 +37,11 @@ class Pooling(nn.Module):
 
         self.word_embedding_dimension = word_embedding_dimension
         self.pooling_mode_cls_token = pooling_mode_cls_token
-        self.pooling_mode_mean_tokens = pooling_mode_mean_tokens
+        self.pooling_mode_mean_tokens = pooling_mode_mean_tokens   # 따로 false를 주는부분 찾아봐야겠다
         self.pooling_mode_max_tokens = pooling_mode_max_tokens
         self.pooling_mode_mean_sqrt_len_tokens = pooling_mode_mean_sqrt_len_tokens
+        self.pooling_mode_mean_last_2_tokens = pooling_mode_mean_last_2_tokens
+
 
         pooling_mode_multiplier = sum([pooling_mode_cls_token, pooling_mode_max_tokens, pooling_mode_mean_tokens, pooling_mode_mean_sqrt_len_tokens])
         self.pooling_output_dimension = (pooling_mode_multiplier * word_embedding_dimension)
@@ -76,6 +80,34 @@ class Pooling(nn.Module):
                 output_vectors.append(sum_embeddings / sum_mask)
             if self.pooling_mode_mean_sqrt_len_tokens:
                 output_vectors.append(sum_embeddings / torch.sqrt(sum_mask))
+
+        if self.pooling_mode_mean_last_2_tokens and "all_layer_embeddings" in features: # avg of last 2 layers
+            if "token_checker" in self.__dict__:
+                token_ids = features['input_ids']
+                new_mask = []
+                for sample_token_ids in token_ids:
+                    sample_mask = []
+                    for token_id in sample_token_ids:
+                        if self.token_checker(token_id.item()):
+                            sample_mask.append(1)
+                        else:
+                            sample_mask.append(0)
+                    new_mask.append(sample_mask)
+                attention_mask = torch.tensor(new_mask).to(device=attention_mask.device, dtype=attention_mask.dtype)
+            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float() # input_mask_expanded = [batch, seq_len ,dim]
+            sum_mask = input_mask_expanded.sum(1)
+            sum_mask = torch.clamp(sum_mask, min=1e-9)
+            
+            token_embeddings_last1 = features["all_layer_embeddings"][-1]
+            # features["all_layer_embeddings"][-1] = [batch, seq_len, dim]
+            sum_embeddings_last1 = torch.sum(token_embeddings_last1 * input_mask_expanded, 1)
+            sum_embeddings_last1 = sum_embeddings_last1 / sum_mask
+            
+            token_embeddings_last2 = features["all_layer_embeddings"][-2]
+            sum_embeddings_last2 = torch.sum(token_embeddings_last2 * input_mask_expanded, 1)
+            sum_embeddings_last2 = sum_embeddings_last2 / sum_mask
+            
+            output_vectors.append((sum_embeddings_last1+sum_embeddings_last2) / 2)
         
         output_vector = torch.cat(output_vectors, 1)
         features.update({'sentence_embedding': output_vector})
