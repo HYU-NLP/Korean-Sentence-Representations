@@ -30,11 +30,17 @@ modeling_bert.py : depending on data augmentation strategies, perturbating input
 | **re-imple** | unsup       | 64.69     | 78.56     | 69.01     | 79.70     | 75.77     | 73.86    | 67.15      | 72.68    |
 | **BASELINE** | sup         | 69.93     | 76.00     | 72.15     | 78.59     | 73.53     | 76.10    | 73.01      | 74.19    |
 | **re-imple** | sup         | 69.16     | 73.38     | 71.06     | 77.77     | 73.79     | 75.81    | 72.20      | 73.31    |
-| **BASELINE** | sup-unsup   | 73.02     | 84.86     | 77.32     | 82.7      | 78.2      | 81.34    | 75.00      | 78.92    |
-| **re-imple** | sup-unsup   | 72.53     | 82.95     | 74.06     | 82.89     | 77.46     | 80.08    | 73.96      | 77.78    |
+| **BASELINE** | sup-unsup   | 73.02     | 84.86     | 77.32     | 82.70     | 78.2      | 81.34    | 75.00      | 78.92    |
+| **re-imple** | sup-unsup   | 72.99     | 84.28     | 76.73     | 82.54     | 78.12     | 81.12    | 75.02      | 78.69    |
 | **BASELINE** | joint       | 70.92     | 79.98     | 74.88     | 81.76     | 76.46     | 78.99    | 78.15      | 77.31    |
-| **re-imple** | joint       | 70.40     | 75.79     | 71.88     | 79.39     | 74.67     | 76.76    | 75.49      | 74.91    |
+| **re-imple** | joint       | 70.47     | 78.73     | 73.80     | 70.94     | 76.03     | 77.75    | 77.70      | 76.49    |
 | **BASELINE** | joint-unsup | 74.46     | 84.19     | 77.08     | 83.77     | 78.55     | 81.37    | 77.01      | 79.49    |
-| **re-imple** | joint-unsup | 71.81     | 80.59     | 73.71     | 80.64     | 74.45     | 78.37    | 76.18      | 76.53    |
+| **re-imple** | joint-unsup | 73.46     | 83.44     | 76.06     | 83.07     | 78.46     | 80.27    | 75.90      | 78.66    |
 
+data agumentation strategies settings      
+joint : token_cutoff(cutoff rate = 0.1), none     
+joint-unsup : shuffle, none     
+sup-unsup : feature_cutoff(cutoff rate = 0.1), none     
 
+Combinations of augmnetation strategies have a effect on the results.      
+Just so you know, on joint, joint-unsup and sup-unsup settings, taking feature_cutoff and shuffle strategies lowers the Avg scores by 2 points compared to the results above
