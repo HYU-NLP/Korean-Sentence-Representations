@@ -1,5 +1,5 @@
 import sys
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import torch
 from prettytable import PrettyTable
@@ -59,7 +59,7 @@ class CLTrainer(Trainer):
             ignore_keys: Optional[List[str]] = None,
             metric_key_prefix: str = "eval",
             while_training: bool = True,
-    ) -> Dict[str, float]:
+    ):
 
         # SentEval prepare and batcher
         def prepare(params, samples):
@@ -109,24 +109,26 @@ class CLTrainer(Trainer):
         self.model.eval()
         results = se.eval(tasks)
 
-        print_results(results)
+        if not while_training:
+            print_results(results)
+            return
+        else:
+            stsb_spearman = results['STSBenchmark']['dev']['spearman'][0]
+            sickr_spearman = results['SICKRelatedness']['dev']['spearman'][0]
 
-        stsb_spearman = results['STSBenchmark']['dev']['spearman'][0]
-        sickr_spearman = results['SICKRelatedness']['dev']['spearman'][0]
+            metrics = {
+                "eval_stsb_spearman": stsb_spearman,
+                "eval_sickr_spearman": sickr_spearman,
+                "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2
+            }
 
-        metrics = {
-            "eval_stsb_spearman": stsb_spearman,
-            "eval_sickr_spearman": sickr_spearman,
-            "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2
-        }
+            if while_training:
+                avg_transfer = 0
+                for task in ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']:
+                    avg_transfer += results[task]['devacc']
+                    metrics['eval_{}'.format(task)] = results[task]['devacc']
+                avg_transfer /= 7
+                metrics['eval_avg_transfer'] = avg_transfer
 
-        if while_training:
-            avg_transfer = 0
-            for task in ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']:
-                avg_transfer += results[task]['devacc']
-                metrics['eval_{}'.format(task)] = results[task]['devacc']
-            avg_transfer /= 7
-            metrics['eval_avg_transfer'] = avg_transfer
-
-        self.log(metrics)
-        return metrics
+            self.log(metrics)
+            return metrics
