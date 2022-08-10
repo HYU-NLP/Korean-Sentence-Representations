@@ -227,7 +227,6 @@ if __name__ == '__main__':
 
     # Default params for TrainingArguments, can still be overridden by command-line
     sys.argv.extend([
-        '--output_dir', 'output_dir',
         '--overwrite_output_dir', 'True',
 
         '--evaluation_strategy', 'steps',
