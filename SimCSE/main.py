@@ -203,7 +203,7 @@ class TrainingArguments(transformers.TrainingArguments):
     preprocessing_num_workers: int = field(default=1)
 
     simcse_mode: str = field(default=MODE_UNSUP)
-    train_file: str = field(default=None)
+    train_file: str = field(default='./data/wiki1m_for_simcse.txt')
     pooler_type: str = field(default=POOLER_TYPE_CLS)  # Depend on simcse_mode
     mlp_only_train: bool = field(default=True)  # Depend on simcse_mode
     temperature: float = field(default=0.05)
@@ -219,16 +219,21 @@ class TrainingArguments(transformers.TrainingArguments):
             raise ValueError(f'{self.simcse_mode} is not a valid simcse mode. Valid modes are {MODE_ALL}.')
 
         if self.simcse_mode == MODE_UNSUP:  # Remove this if you want to do differently from paper
-            self.mlp_only_train = True
-            self.pooler_type = POOLER_TYPE_CLS
-            self.train_file = './data/wiki1m_for_simcse.txt'
+            if not self.mlp_only_train:
+                raise ValueError('mlp_only_train must be True when simcse_mode is MODE_UNSUP')
+
+            if self.pooler_type != POOLER_TYPE_CLS:
+                raise ValueError('pooler_type must be POOLER_TYPE_CLS when simcse_mode is MODE_UNSUP')
+
+            if self.train_file != './data/wiki1m_for_simcse.txt':
+                raise ValueError('train_file must be ./data/wiki1m_for_simcse.txt when simcse_mode is MODE_UNSUP')
 
 
 if __name__ == '__main__':
     logger_init()
 
     # Default params for TrainingArguments, can still be overridden by command-line
-    sys.argv.extend([
+    fake_argv = [
         '--overwrite_output_dir', 'True',
 
         '--evaluation_strategy', 'steps',
@@ -246,6 +251,8 @@ if __name__ == '__main__':
         '--learning_rate', '1e-5',
 
         '--metric_for_best_model', 'stsb_spearman',
-    ])
+    ]
 
-    main(sys.argv[1:])
+    fake_argv.extend(sys.argv[1:])
+
+    main(fake_argv)
