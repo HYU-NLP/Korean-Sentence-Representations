@@ -72,6 +72,7 @@ class CLTrainer(Trainer):
                 return_tensors='pt',
                 padding=True,
             )
+
             for k in batch:
                 batch[k] = batch[k].to(self.args.device)
 
@@ -81,7 +82,6 @@ class CLTrainer(Trainer):
 
             return pooler_output.cpu()
 
-        # Set params for SentEval (fastmode)
         if not while_training:
             params = {
                 'task_path': PATH_TO_DATA,
@@ -90,6 +90,7 @@ class CLTrainer(Trainer):
                 'classifier': {'nhid': 0, 'optim': 'adam', 'batch_size': 64, 'tenacity': 5, 'epoch_size': 4}
             }
         else:
+            # Set params for SentEval (fastmode)
             params = {
                 'task_path': PATH_TO_DATA,
                 'usepytorch': True,
