@@ -86,7 +86,7 @@ def main(default_params):
     tokenizer = BertTokenizer.from_pretrained(training_args.model_name_or_path)
 
     if training_args.simcse_mode == MODE_UNSUP:
-        datasets = load_dataset('text', data_files={'train': './data/wiki1m_for_simcse.txt'})
+        datasets = load_dataset('text', data_files={'train': training_args.train_file})
         column_names = datasets['train'].column_names
         column_name = column_names[0]  # The only column name in unsup dataset
 
@@ -203,6 +203,7 @@ class TrainingArguments(transformers.TrainingArguments):
     preprocessing_num_workers: int = field(default=1)
 
     simcse_mode: str = field(default=MODE_UNSUP)
+    train_file: str = field(default=None)
     pooler_type: str = field(default=POOLER_TYPE_CLS)  # Depend on simcse_mode
     mlp_only_train: bool = field(default=True)  # Depend on simcse_mode
     temperature: float = field(default=0.05)
@@ -220,6 +221,7 @@ class TrainingArguments(transformers.TrainingArguments):
         if self.simcse_mode == MODE_UNSUP:  # Remove this if you want to do differently from paper
             self.mlp_only_train = True
             self.pooler_type = POOLER_TYPE_CLS
+            self.train_file = './data/wiki1m_for_simcse.txt'
 
 
 if __name__ == '__main__':
