@@ -1,0 +1,25 @@
+# SentEval data and .pyc files
+
+
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# log files
+*.log
+*.txt
+
+# data files
+senteval.tar
+data/downstream/CR
+data/downstream/MPQA
+data/downstream/MR
+data/downstream/MRPC
+data/downstream/SICK
+data/downstream/SNLI
+data/downstream/SST
+data/downstream/STS
+data/downstream/SUBJ
+data/downstream/TREC

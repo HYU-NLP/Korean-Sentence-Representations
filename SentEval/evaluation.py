@@ -1,14 +1,14 @@
 import argparse
 import logging
-import sys
 from datetime import datetime
 
 import torch
 from prettytable import PrettyTable
 from transformers import set_seed, BertConfig, BertModel, BertTokenizer
 
-sys.path.insert(0, './SentEval')  # To SentEval
 import senteval
+
+PATH_TO_DATA = './data'
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -92,7 +92,8 @@ def main():
     parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--seed', default=4885, type=int)
 
-    parser.add_argument('--model_name', default='princeton-nlp/sup-simcse-bert-base-uncased', type=str)  # Should be bert base model, including SimCSE models
+    parser.add_argument('--model_name', default='princeton-nlp/sup-simcse-bert-base-uncased',
+                        type=str)  # Should be bert base model, including SimCSE models
     parser.add_argument('--model_path', default='', type=str)  # if exist, model_name will be ignored
 
     args = parser.parse_known_args()[0]
@@ -112,13 +113,14 @@ def main():
     model_path = args.model_path
 
     sent_eval_params = {  # SimCSE Test mode params
-        'task_path': './SentEval/data',
+        'task_path': PATH_TO_DATA,
         'classifier': {'nhid': 0, 'optim': 'adam', 'batch_size': 64, 'tenacity': 5, 'epoch_size': 4},
         'usepytorch': True,
         'kfold': 10
     }
 
-    tasks = ['STS12', 'STS13', 'STS14', 'STS15', 'STS16', 'STSBenchmark', 'SICKRelatedness']  # TODO Should make it as argument
+    # TODO Should make it as argument
+    tasks = ['STS12', 'STS13', 'STS14', 'STS15', 'STS16', 'STSBenchmark', 'SICKRelatedness']
 
     # Prepare tokenizer, dataset (+ dataloader), model, loss function, optimizer, etc --
     if model_path:
