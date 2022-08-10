@@ -122,13 +122,5 @@ class CLTrainer(Trainer):
                 "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2
             }
 
-            if while_training:
-                avg_transfer = 0
-                for task in ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']:
-                    avg_transfer += results[task]['devacc']
-                    metrics['eval_{}'.format(task)] = results[task]['devacc']
-                avg_transfer /= 7
-                metrics['eval_avg_transfer'] = avg_transfer
-
             self.log(metrics)
             return metrics

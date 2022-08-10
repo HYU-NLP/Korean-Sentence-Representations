@@ -192,7 +192,7 @@ def main(default_params):
     )
 
     trainer.train()
-    logger.info(trainer.evaluate(while_training=False))
+    trainer.evaluate(while_training=False)
 
 
 @dataclass
