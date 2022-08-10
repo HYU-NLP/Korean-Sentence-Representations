@@ -34,6 +34,7 @@ def print_results(results):
                 scores.append("%.2f" % (results[task]['test']['spearman'].correlation * 100))
         else:
             scores.append("0.00")
+
     task_names.append("Avg.")
     scores.append("%.2f" % (sum([float(score) for score in scores]) / len(scores)))
     print_table(task_names, scores)
@@ -57,7 +58,7 @@ class CLTrainer(Trainer):
             eval_dataset: Optional[Dataset] = None,
             ignore_keys: Optional[List[str]] = None,
             metric_key_prefix: str = "eval",
-            eval_senteval_transfer: bool = False,
+            while_training: bool = True,
     ) -> Dict[str, float]:
 
         # SentEval prepare and batcher
@@ -81,16 +82,27 @@ class CLTrainer(Trainer):
             return pooler_output.cpu()
 
         # Set params for SentEval (fastmode)
-        params = {
-            'task_path': PATH_TO_DATA,
-            'usepytorch': True,
-            'kfold': 5,
-            'classifier': {'nhid': 0, 'optim': 'rmsprop', 'batch_size': 128, 'tenacity': 3, 'epoch_size': 2}
-        }
+        if not while_training:
+            params = {
+                'task_path': PATH_TO_DATA,
+                'usepytorch': True,
+                'kfold': 10,
+                'classifier': {'nhid': 0, 'optim': 'adam', 'batch_size': 64, 'tenacity': 5, 'epoch_size': 4}
+            }
+        else:
+            params = {
+                'task_path': PATH_TO_DATA,
+                'usepytorch': True,
+                'kfold': 5,
+                'classifier': {'nhid': 0, 'optim': 'rmsprop', 'batch_size': 128, 'tenacity': 3, 'epoch_size': 2}
+            }
 
         se = senteval.engine.SE(params, batcher, prepare)
-        if eval_senteval_transfer:
-            tasks = ['STSBenchmark', 'SICKRelatedness', 'MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']
+        if not while_training:
+            tasks = [
+                'STS12', 'STS13', 'STS14', 'STS15', 'STS16', 'STSBenchmark', 'SICKRelatedness',
+                'MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC'
+            ]
         else:
             tasks = ['STSBenchmark', 'SICKRelatedness']
 
@@ -108,7 +120,7 @@ class CLTrainer(Trainer):
             "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2
         }
 
-        if eval_senteval_transfer:
+        if while_training:
             avg_transfer = 0
             for task in ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']:
                 avg_transfer += results[task]['devacc']
