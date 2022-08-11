@@ -244,7 +244,7 @@ class TrainingArguments(transformers.TrainingArguments):
         super().__post_init__()
 
         if self.pooler_type not in POOLER_TYPE_ALL:
-            raise ValueError(f'{self.pooler_type} is not a valid pooler type. Valid types are {Pooler.TYPE_ALL}.')
+            raise ValueError(f'{self.pooler_type} is not a valid pooler type. Valid types are {POOLER_TYPE_ALL}.')
 
         if self.simcse_mode not in MODE_ALL:
             raise ValueError(f'{self.simcse_mode} is not a valid simcse mode. Valid modes are {MODE_ALL}.')
