@@ -19,7 +19,8 @@ from simcse.trainers import CLTrainer
 logger = logging.getLogger(__name__)
 
 MODE_UNSUP = 'unsup'
-MODE_ALL = [MODE_UNSUP]
+MODE_SUP_HARD_NEG = 'sup'
+MODE_ALL = [MODE_UNSUP, MODE_SUP_HARD_NEG]
 
 
 class StreamToLogger(object):
@@ -88,16 +89,43 @@ def main(default_params):
     if training_args.simcse_mode == MODE_UNSUP:
         datasets = load_dataset('text', data_files={'train': training_args.train_file})
         column_names = datasets['train'].column_names
-        column_name = column_names[0]  # The only column name in unsup dataset
 
         def preprocess_function(examples):
+            column_name = column_names[0]  # The only column name in unsup dataset
+
             total = len(examples[column_name])  # Total len
             copied = examples[column_name] + examples[column_name]  # Repeat itself
+
             tokenized = tokenizer(copied, truncation=True, max_length=training_args.max_seq_length)
 
             result = {}
             for key in tokenized:
                 result[key] = [[tokenized[key][i], tokenized[key][i + total]] for i in range(total)]
+
+            return result
+
+        train_dataset = datasets['train'].map(
+            preprocess_function,
+            batched=True,
+            remove_columns=column_names,
+            num_proc=training_args.preprocessing_num_workers,
+        )
+
+    elif training_args.simcse_mode == MODE_SUP_HARD_NEG:
+        datasets = load_dataset('csv', data_files={'train': training_args.train_file}, delimiter=',')
+        column_names = datasets['train'].column_names
+
+        def preprocess_function(examples):
+            total = len(examples[column_names[0]])  # Total len
+            copied = examples[column_names[0]] + examples[column_names[1]] + examples[column_names[2]]
+
+            tokenized = tokenizer(copied, truncation=True, max_length=training_args.max_seq_length)
+
+            result = {}
+            for key in tokenized:
+                result[key] = [
+                    [tokenized[key][i], tokenized[key][i + total], tokenized[key][i + total * 2]] for i in range(total)
+                ]
 
             return result
 
@@ -202,14 +230,15 @@ class TrainingArguments(transformers.TrainingArguments):
 
     preprocessing_num_workers: int = field(default=1)
 
-    simcse_mode: str = field(default=MODE_UNSUP)
-    train_file: str = field(default='./data/wiki1m_for_simcse.txt')
-    pooler_type: str = field(default=POOLER_TYPE_CLS)  # Depend on simcse_mode
-    mlp_only_train: bool = field(default=True)  # Depend on simcse_mode
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
 
-    disable_gradient_clipping: bool = field(default=True)
+    simcse_mode: str = field(default=MODE_SUP_HARD_NEG)
+    train_file: str = field(default='./data/nli_for_simcse.csv')
+    pooler_type: str = field(default=POOLER_TYPE_CLS)  # Depend on simcse_mode
+    mlp_only_train: bool = field(default=False)  # Depend on simcse_mode
+
+    disable_gradient_clipping: bool = field(default=False)
 
     def __post_init__(self):
         super().__post_init__()
@@ -220,15 +249,26 @@ class TrainingArguments(transformers.TrainingArguments):
         if self.simcse_mode not in MODE_ALL:
             raise ValueError(f'{self.simcse_mode} is not a valid simcse mode. Valid modes are {MODE_ALL}.')
 
-        if self.simcse_mode == MODE_UNSUP:  # Remove this if you want to do differently from paper
-            if not self.mlp_only_train:
-                raise ValueError('mlp_only_train must be True when simcse_mode is MODE_UNSUP')
-
+        # Comment rules if you want to do differently from paper
+        if self.simcse_mode == MODE_UNSUP:
             if self.pooler_type != POOLER_TYPE_CLS:
                 raise ValueError('pooler_type must be POOLER_TYPE_CLS when simcse_mode is MODE_UNSUP')
 
+            if not self.mlp_only_train:
+                raise ValueError('mlp_only_train must be True when simcse_mode is MODE_UNSUP')
+
             if self.train_file != './data/wiki1m_for_simcse.txt':
                 raise ValueError('train_file must be ./data/wiki1m_for_simcse.txt when simcse_mode is MODE_UNSUP')
+
+        elif self.simcse_mode == MODE_SUP_HARD_NEG:
+            if self.pooler_type != POOLER_TYPE_CLS:
+                raise ValueError('pooler_type must be POOLER_TYPE_CLS when simcse_mode is MODE_SUP')
+
+            if self.mlp_only_train:
+                raise ValueError('mlp_only_train must be False when simcse_mode is MODE_SUP')
+
+            if self.train_file != './data/nli_for_simcse.csv':
+                raise ValueError('train_file must be ./data/nli_for_simcse.csv when simcse_mode is MODE_SUP')
 
 
 if __name__ == '__main__':
