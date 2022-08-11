@@ -209,6 +209,8 @@ class TrainingArguments(transformers.TrainingArguments):
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
 
+    disable_gradient_clipping: bool = field(default=True)
+
     def __post_init__(self):
         super().__post_init__()
 
