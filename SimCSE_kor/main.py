@@ -7,6 +7,7 @@ from typing import Union, Optional, List, Dict
 import torch
 import transformers
 from datasets import load_dataset
+from tqdm.contrib.logging import logging_redirect_tqdm
 from transformers import (
     HfArgumentParser,
     TrainingArguments,
@@ -98,7 +99,33 @@ def main(default_params):
         column_names = train_dataset['train'].column_names
 
         def preprocess_train_function(examples):
-            total = len(examples[column_names[0]])  # Total len
+            total = len(examples[column_names[0]])
+
+            # These kinds of data exist in snli_1.0_train.ko.tsv, which interpreted as None by load_dataset, which needs to be removed.
+            # Examples)
+            #  - 설명할 그림을 볼 수 없습니다. N/A neutral
+            #  - 설명할 그림을 볼 수 없습니다. N/A entailment
+            #  - 설명할 그림을 볼 수 없습니다. N/A contradiction
+            abnormal_examples_index = []
+            for i in range(total):
+                if (
+                        examples[column_names[0]][i] == None
+                        or examples[column_names[1]][i] == None
+                        or examples[column_names[2]][i] == None
+                ):
+                    logger.info(
+                        f'Example that will be removed: {examples[column_names[0]][i]} {examples[column_names[1]][i]} {examples[column_names[2]][i]}'
+                    )
+
+                    abnormal_examples_index.append(i)
+
+            # Remove from the end to avoid index shift.
+            for i in reversed(abnormal_examples_index):
+                del examples[column_names[0]][i]
+                del examples[column_names[1]][i]
+                del examples[column_names[2]][i]
+                total -= 1
+
             copied = examples[column_names[0]] + examples[column_names[1]] + examples[column_names[2]]
 
             tokenized = tokenizer(copied, truncation=True, max_length=training_args.max_seq_length)
@@ -111,12 +138,13 @@ def main(default_params):
 
             return result
 
-        train_dataset = train_dataset['train'].map(
-            preprocess_train_function,
-            batched=True,
-            remove_columns=column_names,
-            num_proc=training_args.preprocessing_num_workers,
-        )
+        with logging_redirect_tqdm():
+            train_dataset = train_dataset['train'].map(
+                preprocess_train_function,
+                batched=True,
+                remove_columns=column_names,
+                num_proc=training_args.preprocessing_num_workers,
+            )
 
     else:
         raise NotImplementedError
@@ -257,11 +285,11 @@ if __name__ == '__main__':
         '--overwrite_output_dir', 'True',
 
         '--evaluation_strategy', 'steps',
-        '--eval_steps', '250',
+        '--eval_steps', '30',  # FIXME revert to 250
         '--save_strategy', 'steps',
-        '--save_steps', '250',
+        '--save_steps', '30',  # FIXME revert to 250
         '--logging_strategy', 'steps',
-        '--logging_steps', '250',
+        '--logging_steps', '30',  # FIXME revert to 250
         '--load_best_model_at_end', 'True',
         '--report_to', 'tensorboard',
 
