@@ -225,8 +225,6 @@ class TrainingArguments(transformers.TrainingArguments):
     pooler_type: str = field(default=POOLER_TYPE_CLS)  # Depend on simcse_mode
     mlp_only_train: bool = field(default=False)  # Depend on simcse_mode
 
-    disable_gradient_clipping: bool = field(default=False)
-
     def __post_init__(self):
         super().__post_init__()
 
