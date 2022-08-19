@@ -242,7 +242,7 @@ class TrainingArguments(transformers.TrainingArguments):
     model_name_or_path: str = field(default='bert-base-multilingual-uncased')
     max_seq_length: int = field(default=32)
 
-    preprocessing_num_workers: int = field(default=1)
+    preprocessing_num_workers: int = field(default=8)
 
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
