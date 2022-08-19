@@ -108,7 +108,6 @@ def main(default_params):
             preprocess_function,
             batched=True,
             remove_columns=column_names,
-            num_proc=training_args.preprocessing_num_workers,
         )
 
     elif training_args.simcse_mode == MODE_SUP_HARD_NEG:
@@ -133,7 +132,6 @@ def main(default_params):
             preprocess_function,
             batched=True,
             remove_columns=column_names,
-            num_proc=training_args.preprocessing_num_workers,
         )
 
     else:
@@ -227,8 +225,6 @@ def main(default_params):
 class TrainingArguments(transformers.TrainingArguments):
     model_name_or_path: str = field(default='bert-base-uncased')
     max_seq_length: int = field(default=32)
-
-    preprocessing_num_workers: int = field(default=1)
 
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
