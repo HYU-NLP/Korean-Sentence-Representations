@@ -18,51 +18,16 @@ from transformers import (
 from simcse.models import BertForCL, RobertaForCL, POOLER_TYPE_CLS, POOLER_TYPE_ALL
 from simcse.trainers import CLTrainer
 
+logging.basicConfig(
+    format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
+    level=logging.INFO,
+)
+
 logger = logging.getLogger(__name__)
 
 MODE_UNSUP = 'unsup'
 MODE_SUP_HARD_NEG = 'sup'
 MODE_ALL = [MODE_UNSUP, MODE_SUP_HARD_NEG]
-
-
-class StreamToLogger(object):
-    """
-    Fake file-like stream object that redirects writes to a logger instance.
-    """
-
-    def __init__(self, logger, log_level=logging.INFO):
-        self.logger = logger
-        self.log_level = log_level
-        self.line_buf = ''
-
-    def write(self, buf):
-        temp_line_buf = self.line_buf + buf
-        self.line_buf = ''
-        for line in temp_line_buf.splitlines(True):
-            # From the io.TextIOWrapper docs:
-            #   On output, if newline is None, any '\n' characters written
-            #   are translated to the system default line separator.
-            # By default sys.stdout.write() expects '\n' newlines and then
-            # translates them so this is still cross platform.
-
-            if line[-1] == '\n':
-                self.logger.log(self.log_level, line.rstrip())
-            else:
-                self.line_buf += line
-
-    def flush(self):
-        if self.line_buf != '':
-            self.logger.log(self.log_level, self.line_buf.rstrip())
-        self.line_buf = ''
-
-
-def logger_init():
-    logging.basicConfig(
-        level=logging.INFO
-    )
-
-    sys.stdout = StreamToLogger(logging.getLogger('stdout'), logging.INFO)
-    # sys.stderr = StreamToLogger(logging.getLogger('stderr'), logging.ERROR)  # Don't redirect stderr because of tqdm
 
 
 def log_args(used_args, unused_args):
@@ -277,8 +242,6 @@ class TrainingArguments(transformers.TrainingArguments):
 
 
 if __name__ == '__main__':
-    logger_init()
-
     # Default params for TrainingArguments, can still be overridden by command-line
     fake_argv = [
         '--output_dir', './output_dir',
