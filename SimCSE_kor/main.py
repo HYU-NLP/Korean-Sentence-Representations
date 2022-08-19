@@ -1,3 +1,4 @@
+import csv
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -13,7 +14,7 @@ from transformers import (
     BertTokenizer, BertConfig, PreTrainedTokenizerBase
 )
 
-from simcse.models import BertForCL, RobertaForCL, Pooler, POOLER_TYPE_CLS, POOLER_TYPE_ALL
+from simcse.models import BertForCL, RobertaForCL, POOLER_TYPE_CLS, POOLER_TYPE_ALL
 from simcse.trainers import CLTrainer
 
 logger = logging.getLogger(__name__)
@@ -86,36 +87,17 @@ def main(default_params):
     # Prepare tokenizer, dataset (+ dataloader), model, loss function, optimizer, etc --
     tokenizer = BertTokenizer.from_pretrained(training_args.model_name_or_path)
 
-    if training_args.simcse_mode == MODE_UNSUP:
-        datasets = load_dataset('text', data_files={'train': training_args.train_file})
-        column_names = datasets['train'].column_names
-
-        def preprocess_function(examples):
-            column_name = column_names[0]  # The only column name in unsup dataset
-
-            total = len(examples[column_name])  # Total len
-            copied = examples[column_name] + examples[column_name]  # Repeat itself
-
-            tokenized = tokenizer(copied, truncation=True, max_length=training_args.max_seq_length)
-
-            result = {}
-            for key in tokenized:
-                result[key] = [[tokenized[key][i], tokenized[key][i + total]] for i in range(total)]
-
-            return result
-
-        train_dataset = datasets['train'].map(
-            preprocess_function,
-            batched=True,
-            remove_columns=column_names,
-            num_proc=training_args.preprocessing_num_workers,
+    if training_args.simcse_mode == MODE_SUP_HARD_NEG:
+        train_dataset = load_dataset(
+            'csv',
+            data_files={'train': training_args.train_file},
+            sep='\t',
+            quoting=csv.QUOTE_NONE,
         )
 
-    elif training_args.simcse_mode == MODE_SUP_HARD_NEG:
-        datasets = load_dataset('csv', data_files={'train': training_args.train_file}, delimiter=',')
-        column_names = datasets['train'].column_names
+        column_names = train_dataset['train'].column_names
 
-        def preprocess_function(examples):
+        def preprocess_train_function(examples):
             total = len(examples[column_names[0]])  # Total len
             copied = examples[column_names[0]] + examples[column_names[1]] + examples[column_names[2]]
 
@@ -129,15 +111,15 @@ def main(default_params):
 
             return result
 
-        train_dataset = datasets['train'].map(
-            preprocess_function,
+        train_dataset = train_dataset['train'].map(
+            preprocess_train_function,
             batched=True,
             remove_columns=column_names,
             num_proc=training_args.preprocessing_num_workers,
         )
 
     else:
-        raise NotImplemented
+        raise NotImplementedError
 
     config = BertConfig.from_pretrained(training_args.model_name_or_path)
 
@@ -212,20 +194,24 @@ def main(default_params):
 
     data_collator = DataCollatorWithPadding(tokenizer)
 
+    # [Note]
+    # Validation is hard coded via overriding, uses eval_file of our TrainingArguments.
+    # See CLTrainer.
     trainer = CLTrainer(
         model=model,
         args=training_args,
         data_collator=data_collator,
-        train_dataset=train_dataset,
+        train_dataset=train_dataset
     )
 
     trainer.train()
-    trainer.evaluate(while_training=False)
+    trainer.save_model()
+    trainer.save_state()
 
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
-    model_name_or_path: str = field(default='bert-base-uncased')
+    model_name_or_path: str = field(default='bert-base-uncased')  # FIXME Use bert-base-multilingual-uncased
     max_seq_length: int = field(default=32)
 
     preprocessing_num_workers: int = field(default=1)
@@ -234,7 +220,8 @@ class TrainingArguments(transformers.TrainingArguments):
     hard_negative_weight: float = field(default=0)
 
     simcse_mode: str = field(default=MODE_SUP_HARD_NEG)
-    train_file: str = field(default='./data/nli_for_simcse.csv')
+    train_file: str = field(default='./data/KorNLI/snli_1.0_train.ko.tsv')
+    eval_file: str = field(default='./data/KorSTS/sts-dev.tsv')
     pooler_type: str = field(default=POOLER_TYPE_CLS)  # Depend on simcse_mode
     mlp_only_train: bool = field(default=False)  # Depend on simcse_mode
 
@@ -251,24 +238,16 @@ class TrainingArguments(transformers.TrainingArguments):
 
         # Comment rules if you want to do differently from paper
         if self.simcse_mode == MODE_UNSUP:
-            if self.pooler_type != POOLER_TYPE_CLS:
-                raise ValueError('pooler_type must be POOLER_TYPE_CLS when simcse_mode is MODE_UNSUP')
-
-            if not self.mlp_only_train:
-                raise ValueError('mlp_only_train must be True when simcse_mode is MODE_UNSUP')
-
-            if self.train_file != './data/wiki1m_for_simcse.txt':
-                raise ValueError('train_file must be ./data/wiki1m_for_simcse.txt when simcse_mode is MODE_UNSUP')
+            raise ValueError('Unsupervised mode is not implemented yet.')
 
         elif self.simcse_mode == MODE_SUP_HARD_NEG:
             if self.pooler_type != POOLER_TYPE_CLS:
                 raise ValueError('pooler_type must be POOLER_TYPE_CLS when simcse_mode is MODE_SUP')
 
-            if self.mlp_only_train:
-                raise ValueError('mlp_only_train must be False when simcse_mode is MODE_SUP')
-
-            if self.train_file != './data/nli_for_simcse.csv':
-                raise ValueError('train_file must be ./data/nli_for_simcse.csv when simcse_mode is MODE_SUP')
+            if self.train_file in 'snli_1.0_train' and self.eval_file in 'sts-dev':
+                raise ValueError(
+                    f'{self.train_file} and {self.eval_file} are not valid for simcse_mode {self.simcse_mode}'
+                )
 
 
 if __name__ == '__main__':
@@ -276,6 +255,7 @@ if __name__ == '__main__':
 
     # Default params for TrainingArguments, can still be overridden by command-line
     fake_argv = [
+        '--output_dir', './output_dir',
         '--overwrite_output_dir', 'True',
 
         '--evaluation_strategy', 'steps',
@@ -289,10 +269,11 @@ if __name__ == '__main__':
 
         '--num_train_epochs', '1',
         '--per_device_train_batch_size', '64',
+        '--per_device_eval_batch_size', '64',
 
         '--learning_rate', '1e-5',
 
-        '--metric_for_best_model', 'stsb_spearman',
+        '--metric_for_best_model', 'kor_stsb_spearman',  # See CLTrainer
     ]
 
     fake_argv.extend(sys.argv[1:])

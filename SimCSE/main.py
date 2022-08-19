@@ -251,11 +251,10 @@ class TrainingArguments(transformers.TrainingArguments):
 
         # Comment rules if you want to do differently from paper
         if self.simcse_mode == MODE_UNSUP:
-            if self.pooler_type != POOLER_TYPE_CLS:
-                raise ValueError('pooler_type must be POOLER_TYPE_CLS when simcse_mode is MODE_UNSUP')
-
-            if not self.mlp_only_train:
-                raise ValueError('mlp_only_train must be True when simcse_mode is MODE_UNSUP')
+            if self.pooler_type != POOLER_TYPE_CLS or not self.mlp_only_train:
+                raise ValueError(
+                    f'{self.pooler_type} should be {POOLER_TYPE_CLS} and {self.mlp_only_train} should be True for {self.simcse_mode}.'
+                )
 
             if self.train_file != './data/wiki1m_for_simcse.txt':
                 raise ValueError('train_file must be ./data/wiki1m_for_simcse.txt when simcse_mode is MODE_UNSUP')
@@ -263,9 +262,6 @@ class TrainingArguments(transformers.TrainingArguments):
         elif self.simcse_mode == MODE_SUP_HARD_NEG:
             if self.pooler_type != POOLER_TYPE_CLS:
                 raise ValueError('pooler_type must be POOLER_TYPE_CLS when simcse_mode is MODE_SUP')
-
-            if self.mlp_only_train:
-                raise ValueError('mlp_only_train must be False when simcse_mode is MODE_SUP')
 
             if self.train_file != './data/nli_for_simcse.csv':
                 raise ValueError('train_file must be ./data/nli_for_simcse.csv when simcse_mode is MODE_SUP')
@@ -276,6 +272,7 @@ if __name__ == '__main__':
 
     # Default params for TrainingArguments, can still be overridden by command-line
     fake_argv = [
+        '--output_dir', './output_dir',
         '--overwrite_output_dir', 'True',
 
         '--evaluation_strategy', 'steps',
