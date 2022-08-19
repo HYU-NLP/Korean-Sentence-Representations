@@ -111,6 +111,24 @@ def main(default_params):
                 num_proc=training_args.preprocessing_num_workers,
             )
 
+        eval_dataset = load_dataset(
+            'csv',
+            data_files={'valid': training_args.eval_file},
+            sep='\t',
+            quoting=csv.QUOTE_NONE,
+        )
+
+        eval_dataset = eval_dataset['valid']
+
+        test_dataset = load_dataset(
+            'csv',
+            data_files={'test': training_args.test_file},
+            sep='\t',
+            quoting=csv.QUOTE_NONE,
+        )
+
+        test_dataset = test_dataset['test']
+
     else:
         raise NotImplementedError
 
@@ -194,12 +212,19 @@ def main(default_params):
         model=model,
         args=training_args,
         data_collator=data_collator,
-        train_dataset=train_dataset
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset
     )
+
+    logger.info("***** Running Evaluation before training *****")
+    logger.info(trainer.evaluate())
 
     trainer.train()
     trainer.save_model()
     trainer.save_state()
+
+    logger.info("***** Running Evaluate via testset via best model *****")
+    logger.info(trainer.evaluate(eval_dataset=test_dataset))
 
 
 @dataclass
@@ -215,6 +240,7 @@ class TrainingArguments(transformers.TrainingArguments):
     simcse_mode: str = field(default=MODE_SUP_HARD_NEG)
     train_file: str = field(default='./data/KorNLI/snli_1.0_train.ko.tsv')
     eval_file: str = field(default='./data/KorSTS/sts-dev.tsv')
+    test_file: str = field(default='./data/KorSTS/sts-test.tsv')
     pooler_type: str = field(default=POOLER_TYPE_CLS)  # Depend on simcse_mode
     mlp_only_train: bool = field(default=False)  # Depend on simcse_mode
 

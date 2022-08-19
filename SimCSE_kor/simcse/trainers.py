@@ -24,31 +24,6 @@ def similarity(s1, s2):
 
 class CLTrainer(Trainer):
 
-    def __init__(self,
-                 model: Union[PreTrainedModel, nn.Module] = None,
-                 args: TrainingArguments = None,
-                 data_collator: Optional[DataCollator] = None,
-                 train_dataset: Optional[Dataset] = None,
-                 eval_dataset: Optional[Dataset] = None,
-                 tokenizer: Optional[PreTrainedTokenizerBase] = None,
-                 model_init: Callable[[], PreTrainedModel] = None,
-                 compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
-                 callbacks: Optional[List[TrainerCallback]] = None,
-                 optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
-                 preprocess_logits_for_metrics: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None):
-
-        super().__init__(model, args, data_collator, train_dataset, eval_dataset, tokenizer, model_init,
-                         compute_metrics, callbacks, optimizers, preprocess_logits_for_metrics)
-
-        self.eval_dataset = load_dataset(
-            'csv',
-            data_files={'valid': self.args.eval_file},
-            sep='\t',
-            quoting=csv.QUOTE_NONE,
-        )
-
-        self.eval_dataset = self.eval_dataset['valid']
-
     def evaluate(
             self,
             eval_dataset: Optional[Dataset] = None,
@@ -56,8 +31,11 @@ class CLTrainer(Trainer):
             metric_key_prefix: str = "eval",
     ) -> Dict[str, float]:
 
+        if eval_dataset is None:
+            eval_dataset = self.eval_dataset
+
         eval_dataloader = DataLoader(
-            self.eval_dataset,
+            eval_dataset,
             batch_size=self.args.eval_batch_size
         )
 
