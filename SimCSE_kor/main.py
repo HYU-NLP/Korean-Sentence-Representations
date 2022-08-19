@@ -285,11 +285,11 @@ if __name__ == '__main__':
         '--overwrite_output_dir', 'True',
 
         '--evaluation_strategy', 'steps',
-        '--eval_steps', '30',  # FIXME revert to 250
+        '--eval_steps', '250',
         '--save_strategy', 'steps',
-        '--save_steps', '30',  # FIXME revert to 250
+        '--save_steps', '250',
         '--logging_strategy', 'steps',
-        '--logging_steps', '30',  # FIXME revert to 250
+        '--logging_steps', '250',
         '--load_best_model_at_end', 'True',
         '--report_to', 'tensorboard',
 
