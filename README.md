@@ -58,13 +58,14 @@ Below is important parameters of re-imple:
 
 # SimCSE_kor
 
+* Used multilingual BERT based model
 * Trained with snli_1.0_train.ko.tsv.
 * Validated with sts-dev.tsv while training
 * Tested with sts-test.tsv with validation best score checkpoint while training
 
 #### Result
 
-| **Model**                      | Params             | STS-B (dev) | STS-B (test) |
+| **Base Model**                 | Params             | STS-B (dev) | STS-B (test) |
 |--------------------------------|--------------------|-------------|--------------|
 | bert-base-multilingual-uncased | lr: 1e-05, seed:42 | 0.7613      | 0.6928       |
 | "                              | lr: 3e-05, seed:42 | 0.7591      | 0.6918       |
