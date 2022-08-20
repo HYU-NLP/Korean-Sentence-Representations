@@ -70,3 +70,8 @@ Below is important parameters of re-imple:
 | bert-base-multilingual-uncased | lr: 1e-05, seed:42 | 0.7613      | 0.6928       |
 | "                              | lr: 3e-05, seed:42 | 0.7591      | 0.6918       |
 | "                              | lr: 5e-05, seed:42 | 0.7578      | 0.6911       |
+
+Below is common parameters for above experiments:
+* max_seq_length: 32
+* per_device_train_batch_size: 64
+* _n_gpu: 1
