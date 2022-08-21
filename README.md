@@ -65,13 +65,18 @@ Below is important parameters of re-imple:
 
 #### Result
 
-| **Base Model**                 | Params             | STS-B (dev) | STS-B (test) |
-|--------------------------------|--------------------|-------------|--------------|
-| bert-base-multilingual-uncased | lr: 1e-05, seed:42 | 0.7613      | 0.6928       |
-| "                              | lr: 3e-05, seed:42 | 0.7591      | 0.6918       |
-| "                              | lr: 5e-05, seed:42 | 0.7578      | 0.6911       |
+| **Model**         | lr    | STS-B (dev) | STS-B (test) |
+|-------------------|-------|-------------|--------------|
+| m-bert            | 1e-05 |             |              |
+| m-bert            | 3e-05 |             |              |
+| m-bert            | 5e-05 |             |              |
+| Sup-SimCSE-m-bert | 1e-05 | 0.7613      | 0.6928       |
+| "                 | 3e-05 | 0.7591      | 0.6918       |
+| "                 | 5e-05 | 0.7578      | 0.6911       |
 
-Below is common parameters for above experiments:
-* max_seq_length: 32
-* per_device_train_batch_size: 64
-* _n_gpu: 1
+* m-bert: bert-base-multilingual-uncased
+* Below is common parameters for above experiments:
+  * max_seq_length: 32
+  * per_device_train_batch_size: 64
+  * _n_gpu: 1
+  * seed: 42

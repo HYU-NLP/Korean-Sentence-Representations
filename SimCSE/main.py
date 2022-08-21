@@ -86,7 +86,7 @@ def main(default_params):
     # Prepare tokenizer, dataset (+ dataloader), model, loss function, optimizer, etc --
     tokenizer = BertTokenizer.from_pretrained(training_args.model_name_or_path)
 
-    if training_args.simcse_mode == MODE_UNSUP:
+    if training_args.training_mode == MODE_UNSUP:
         datasets = load_dataset('text', data_files={'train': training_args.train_file})
         column_names = datasets['train'].column_names
 
@@ -110,7 +110,7 @@ def main(default_params):
             remove_columns=column_names,
         )
 
-    elif training_args.simcse_mode == MODE_SUP_HARD_NEG:
+    elif training_args.training_mode == MODE_SUP_HARD_NEG:
         datasets = load_dataset('csv', data_files={'train': training_args.train_file}, delimiter=',')
         column_names = datasets['train'].column_names
 

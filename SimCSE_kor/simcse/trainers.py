@@ -1,15 +1,13 @@
-import csv
 import logging
-from typing import List, Optional, Dict, Union, Callable, Tuple
+from typing import List, Optional, Dict
 
 import numpy as np
 import torch
-from datasets import load_dataset
 from scipy.stats import spearmanr, pearsonr
-from torch import nn
 from torch.utils.data import Dataset, DataLoader
-from transformers import Trainer, PreTrainedModel, TrainingArguments, DataCollator, PreTrainedTokenizerBase, \
-    EvalPrediction, TrainerCallback
+from transformers import Trainer
+
+from SimCSE_kor.simcse.models import Pooler
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +42,6 @@ class CLTrainer(Trainer):
         tokenizer = self.data_collator.tokenizer
 
         def batcher(batch):
-
             batch = tokenizer(
                 batch,
                 return_tensors='pt',
@@ -55,8 +52,14 @@ class CLTrainer(Trainer):
                 batch[k] = batch[k].to(self.args.device)
 
             with torch.no_grad():
-                outputs = model(**batch, output_hidden_states=True, return_dict=True, sent_emb=True)
-                pooler_output = outputs.pooler_output
+                if self.args.is_mode_mbert():
+                    outputs = model(**batch, output_hidden_states=True, return_dict=True)
+
+                    pooler = Pooler(self.args.pooler_type)
+                    pooler_output = pooler(batch['attention_mask'], outputs)
+                else:
+                    outputs = model(**batch, output_hidden_states=True, return_dict=True, sent_emb=True)
+                    pooler_output = outputs.pooler_output
 
             return pooler_output.cpu()
 

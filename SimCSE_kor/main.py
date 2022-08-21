@@ -1,6 +1,5 @@
 import csv
 import logging
-import sys
 from dataclasses import dataclass, field
 from typing import Union, Optional, List, Dict
 
@@ -12,22 +11,20 @@ from transformers import (
     HfArgumentParser,
     TrainingArguments,
     set_seed,
-    BertTokenizer, BertConfig, PreTrainedTokenizerBase
+    BertTokenizer, BertConfig, PreTrainedTokenizerBase, BertModel
 )
 
 from simcse.models import BertForCL, RobertaForCL, POOLER_TYPE_CLS, POOLER_TYPE_ALL
 from simcse.trainers import CLTrainer
 
-logging.basicConfig(
-    format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
-    level=logging.INFO,
-)
-
 logger = logging.getLogger(__name__)
 
-MODE_UNSUP = 'unsup'
-MODE_SUP_HARD_NEG = 'sup'
-MODE_ALL = [MODE_UNSUP, MODE_SUP_HARD_NEG]
+
+def log_init():
+    logging.basicConfig(
+        format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
+        level=logging.INFO,
+    )
 
 
 def log_args(used_args, unused_args):
@@ -41,10 +38,11 @@ def log_args(used_args, unused_args):
         logger.info(f'[List of unused arguments]: {unused_args}')
 
 
-def main(default_params):
-    # Parser --
+def main():
+    # Logger & Parser --
+    log_init()
     parser = HfArgumentParser(TrainingArguments)
-    training_args, unused_args = parser.parse_args_into_dataclasses(default_params, return_remaining_strings=True)
+    training_args, unused_args = parser.parse_args_into_dataclasses(return_remaining_strings=True)
     log_args(training_args, unused_args)
 
     # Seed --
@@ -52,8 +50,16 @@ def main(default_params):
 
     # Prepare tokenizer, dataset (+ dataloader), model, loss function, optimizer, etc --
     tokenizer = BertTokenizer.from_pretrained(training_args.model_name_or_path)
+    config = BertConfig.from_pretrained(training_args.model_name_or_path)
 
-    if training_args.simcse_mode == MODE_SUP_HARD_NEG:
+    train_dataset = None
+    eval_dataset = load_dataset('csv', data_files={'valid': training_args.eval_file}, sep='\t', quoting=csv.QUOTE_NONE)
+    eval_dataset = eval_dataset['valid']
+
+    test_dataset = load_dataset('csv', data_files={'test': training_args.test_file}, sep='\t', quoting=csv.QUOTE_NONE)
+    test_dataset = test_dataset['test']
+
+    if training_args.training_mode == TrainingArguments.MODE_SUP_HARD_NEG:
         train_dataset = load_dataset(
             'csv',
             data_files={'train': training_args.train_file},
@@ -110,46 +116,28 @@ def main(default_params):
                 remove_columns=column_names,
             )
 
-        eval_dataset = load_dataset(
-            'csv',
-            data_files={'valid': training_args.eval_file},
-            sep='\t',
-            quoting=csv.QUOTE_NONE,
-        )
+        if 'roberta' in training_args.model_name_or_path:
+            # Work around when "loading best model" on transformers package 4.2.1 version
+            RobertaForCL.temperature = training_args.temperature
+            RobertaForCL.hard_negative_weight = training_args.hard_negative_weight
+            RobertaForCL.pooler_type = training_args.pooler_type
+            RobertaForCL.mlp_only_train = training_args.mlp_only_train
 
-        eval_dataset = eval_dataset['valid']
+            model = RobertaForCL.from_pretrained(training_args.model_name_or_path, config=config)
 
-        test_dataset = load_dataset(
-            'csv',
-            data_files={'test': training_args.test_file},
-            sep='\t',
-            quoting=csv.QUOTE_NONE,
-        )
+        elif 'bert' in training_args.model_name_or_path:
+            # Work around when "loading best model" on transformers package 4.2.1 version
+            BertForCL.temperature = training_args.temperature
+            BertForCL.hard_negative_weight = training_args.hard_negative_weight
+            BertForCL.pooler_type = training_args.pooler_type
+            BertForCL.mlp_only_train = training_args.mlp_only_train
 
-        test_dataset = test_dataset['test']
+            model = BertForCL.from_pretrained(training_args.model_name_or_path, config=config)
+        else:
+            raise NotImplementedError
 
-    else:
-        raise NotImplementedError
-
-    config = BertConfig.from_pretrained(training_args.model_name_or_path)
-
-    if 'roberta' in training_args.model_name_or_path:
-        # Work around when "loading best model" on transformers package 4.2.1 version
-        RobertaForCL.temperature = training_args.temperature
-        RobertaForCL.hard_negative_weight = training_args.hard_negative_weight
-        RobertaForCL.pooler_type = training_args.pooler_type
-        RobertaForCL.mlp_only_train = training_args.mlp_only_train
-
-        model = RobertaForCL.from_pretrained(training_args.model_name_or_path, config=config)
-
-    elif 'bert' in training_args.model_name_or_path:
-        # Work around when "loading best model" on transformers package 4.2.1 version
-        BertForCL.temperature = training_args.temperature
-        BertForCL.hard_negative_weight = training_args.hard_negative_weight
-        BertForCL.pooler_type = training_args.pooler_type
-        BertForCL.mlp_only_train = training_args.mlp_only_train
-
-        model = BertForCL.from_pretrained(training_args.model_name_or_path, config=config)
+    elif training_args.training_mode == TrainingArguments.MODE_MBERT:
+        model = BertModel.from_pretrained(training_args.model_name_or_path)
     else:
         raise NotImplementedError
 
@@ -204,9 +192,7 @@ def main(default_params):
 
     data_collator = DataCollatorWithPadding(tokenizer)
 
-    # [Note]
-    # Validation is hard coded via overriding, uses eval_file of our TrainingArguments.
-    # See CLTrainer.
+    # [Note] eval_dataset (validation and test dataset) is pre-processed on-the-fly in evaluate function in CLTrainer
     trainer = CLTrainer(
         model=model,
         args=training_args,
@@ -218,9 +204,10 @@ def main(default_params):
     logger.info("***** Running Evaluation before training *****")
     logger.info(trainer.evaluate())
 
-    trainer.train()
-    trainer.save_model()
-    trainer.save_state()
+    if training_args.training_mode != TrainingArguments.MODE_MBERT:
+        trainer.train()
+        trainer.save_model()
+        trainer.save_state()
 
     logger.info("***** Running Evaluate via testset via best model *****")
     logger.info(trainer.evaluate(eval_dataset=test_dataset))
@@ -228,18 +215,64 @@ def main(default_params):
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
+    """
+    Default arguments are assumed you are running Supervised SimCSE with korNLI with m-bert.
+    """
+
+    # MODE_UNSUP = 'unsup'
+    MODE_SUP_HARD_NEG = 'sup'
+    MODE_MBERT = 'mbert'
+    MODE_ALL = [
+        # MODE_UNSUP,
+        MODE_SUP_HARD_NEG,
+        MODE_MBERT
+    ]
+
+    # Trainer Arguments --
+    output_dir: str = field(default='./output_dir')
+    overwrite_output_dir: bool = field(default=True)
+
+    evaluation_strategy: str = field(default='steps')
+    eval_steps: int = field(default=250)
+    save_strategy: str = field(default='steps')
+    save_steps: int = field(default=250)
+    logging_strategy: str = field(default='steps')
+    logging_steps: int = field(default=250)
+    load_best_model_at_end: bool = field(default=True)
+    metric_for_best_model: str = field(default='kor_stsb_spearman')  # See CLTrainer
+    report_to: str = field(default='tensorboard')
+
+    num_train_epochs: int = field(default=1)
+    # max_steps: int = field(default=30)
+    per_device_train_batch_size: int = field(default=64)
+    per_device_eval_batch_size: int = field(default=64)
+
+    learning_rate: float = field(default=3e-5)
+
+    fp16: bool = field(default=True)
+
+    # Non-Trainer Arguments --
     model_name_or_path: str = field(default='bert-base-multilingual-uncased')
     max_seq_length: int = field(default=32)
 
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
 
-    simcse_mode: str = field(default=MODE_SUP_HARD_NEG)
+    training_mode: str = field(default=MODE_SUP_HARD_NEG)
     train_file: str = field(default='./data/KorNLI/snli_1.0_train.ko.tsv')
     eval_file: str = field(default='./data/KorSTS/sts-dev.tsv')
     test_file: str = field(default='./data/KorSTS/sts-test.tsv')
-    pooler_type: str = field(default=POOLER_TYPE_CLS)  # Depend on simcse_mode
-    mlp_only_train: bool = field(default=False)  # Depend on simcse_mode
+    pooler_type: str = field(default=POOLER_TYPE_CLS)
+    mlp_only_train: bool = field(default=False)
+
+    def is_mode_sup(self):
+        return self.training_mode == TrainingArguments.MODE_SUP_HARD_NEG
+
+    def is_mode_mbert(self):
+        return self.training_mode == TrainingArguments.MODE_MBERT
+
+    def is_mode_exist(self):
+        return self.training_mode in TrainingArguments.MODE_ALL
 
     def __post_init__(self):
         super().__post_init__()
@@ -247,47 +280,27 @@ class TrainingArguments(transformers.TrainingArguments):
         if self.pooler_type not in POOLER_TYPE_ALL:
             raise ValueError(f'{self.pooler_type} is not a valid pooler type. Valid types are {POOLER_TYPE_ALL}.')
 
-        if self.simcse_mode not in MODE_ALL:
-            raise ValueError(f'{self.simcse_mode} is not a valid simcse mode. Valid modes are {MODE_ALL}.')
-
-        # Comment rules if you want to do differently from paper
-        if self.simcse_mode == MODE_UNSUP:
-            raise ValueError('Unsupervised mode is not implemented yet.')
-
-        elif self.simcse_mode == MODE_SUP_HARD_NEG:
+        if not self.is_mode_exist():
+            raise ValueError(
+                f'{self.training_mode} is not a valid training_mode. Valid modes are {self.MODE_ALL}.'
+            )
+        elif self.is_mode_sup():
             if self.pooler_type != POOLER_TYPE_CLS:
-                raise ValueError('pooler_type must be POOLER_TYPE_CLS when simcse_mode is MODE_SUP')
+                raise ValueError(
+                    f'{self.pooler_type} is not a valid pooler type for supervised training. '
+                    f'Valid type should be {POOLER_TYPE_CLS}.'
+                )
 
             if self.train_file in 'snli_1.0_train' and self.eval_file in 'sts-dev':
                 raise ValueError(
-                    f'{self.train_file} and {self.eval_file} are not valid for simcse_mode {self.simcse_mode}'
+                    'train_file and eval_file must be snli_1.0_train and sts-dev when training_mode is MODE_SUP'
+                )
+        elif self.is_mode_mbert():
+            if 'bert-base-multilingual' not in self.model_name_or_path:
+                raise ValueError(
+                    f'{self.model_name_or_path} is not a valid model name for training_mode {self.training_mode}'
                 )
 
 
 if __name__ == '__main__':
-    # Default params for TrainingArguments, can still be overridden by command-line
-    fake_argv = [
-        '--output_dir', './output_dir',
-        '--overwrite_output_dir', 'True',
-
-        '--evaluation_strategy', 'steps',
-        '--eval_steps', '250',
-        '--save_strategy', 'steps',
-        '--save_steps', '250',
-        '--logging_strategy', 'steps',
-        '--logging_steps', '250',
-        '--load_best_model_at_end', 'True',
-        '--report_to', 'tensorboard',
-
-        '--num_train_epochs', '1',
-        '--per_device_train_batch_size', '64',
-        '--per_device_eval_batch_size', '64',
-
-        '--learning_rate', '1e-5',
-
-        '--metric_for_best_model', 'kor_stsb_spearman',  # See CLTrainer
-    ]
-
-    fake_argv.extend(sys.argv[1:])
-
-    main(fake_argv)
+    main()
