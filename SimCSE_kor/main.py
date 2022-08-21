@@ -14,8 +14,8 @@ from transformers import (
     BertTokenizer, BertConfig, PreTrainedTokenizerBase, BertModel
 )
 
-from simcse.models import BertForCL, RobertaForCL, POOLER_TYPE_CLS, POOLER_TYPE_ALL
-from simcse.trainers import CLTrainer
+from simcse_kor.models import BertForCL, RobertaForCL, POOLER_TYPE_CLS, POOLER_TYPE_ALL
+from simcse_kor.trainers import CLTrainer
 
 logger = logging.getLogger(__name__)
 

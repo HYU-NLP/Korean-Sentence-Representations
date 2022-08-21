@@ -4,10 +4,9 @@ from typing import List, Optional, Dict
 import numpy as np
 import torch
 from scipy.stats import spearmanr, pearsonr
+from simcse_kor.models import Pooler
 from torch.utils.data import Dataset, DataLoader
 from transformers import Trainer
-
-from SimCSE_kor.simcse.models import Pooler
 
 logger = logging.getLogger(__name__)
 
