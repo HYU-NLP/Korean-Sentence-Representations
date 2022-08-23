@@ -54,11 +54,21 @@ def main():
 
     train_dataset = None
 
-    eval_dataset = load_dataset('csv', data_files={'valid': training_args.eval_file}, sep='\t', quoting=csv.QUOTE_NONE)
-    eval_dataset = eval_dataset['valid']
+    eval_dataset = load_dataset(
+        'csv',
+        data_files={'valid': training_args.eval_file},
+        sep='\t',
+        quoting=csv.QUOTE_NONE,
+        split='valid',
+    )
 
-    test_dataset = load_dataset('csv', data_files={'test': training_args.test_file}, sep='\t', quoting=csv.QUOTE_NONE)
-    test_dataset = test_dataset['test']
+    test_dataset = load_dataset(
+        'csv',
+        data_files={'test': training_args.test_file},
+        sep='\t',
+        quoting=csv.QUOTE_NONE,
+        split='test',
+    )
 
     if training_args.training_mode == TrainingArguments.MODE_SUP_HARD_NEG:
         train_dataset = load_dataset(
@@ -66,9 +76,10 @@ def main():
             data_files={'train': training_args.train_file},
             sep='\t',
             quoting=csv.QUOTE_NONE,
+            split='train',
         )
 
-        column_names = train_dataset['train'].column_names
+        column_names = train_dataset.column_names
 
         def preprocess_train_function(examples):
             total = len(examples[column_names[0]])
@@ -111,7 +122,7 @@ def main():
             return result
 
         with logging_redirect_tqdm():
-            train_dataset = train_dataset['train'].map(
+            train_dataset = train_dataset.map(
                 preprocess_train_function,
                 batched=True,
                 remove_columns=column_names,
@@ -202,15 +213,18 @@ def main():
         eval_dataset=eval_dataset
     )
 
-    logger.info("***** Running Evaluation before training *****")
+    logger.info("***** Running Evaluation w/ validation-set before training *****")
     logger.info(trainer.evaluate())
+
+    logger.info("***** Running Evaluation w/ test-set before training *****")
+    logger.info(trainer.evaluate(eval_dataset=test_dataset))
 
     if training_args.training_mode != TrainingArguments.MODE_MBERT:
         trainer.train()
         trainer.save_model()
         trainer.save_state()
 
-    logger.info("***** Running Evaluate via testset via best model *****")
+    logger.info("***** Running Evaluate w/ testset via best model *****")
     logger.info(trainer.evaluate(eval_dataset=test_dataset))
 
 
@@ -246,7 +260,7 @@ class TrainingArguments(transformers.TrainingArguments):
     report_to: str = field(default='tensorboard')
 
     num_train_epochs: int = field(default=1)
-    # max_steps: int = field(default=30)
+    max_steps: int = field(default=100)
     per_device_train_batch_size: int = field(default=64)
     per_device_eval_batch_size: int = field(default=64)
 
