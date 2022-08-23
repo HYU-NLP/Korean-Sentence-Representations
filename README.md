@@ -63,12 +63,14 @@ Below is important parameters of re-imple:
 
 #### Result
 
-| **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) |
-|-------------------|-----------------------|-------|-------------|--------------|
-| m-bert            | -                     | -     | 0.3026      | 0.2226       |
-| Sup-SimCSE-m-bert | snli_1.0_train.ko.tsv | 1e-05 | 0.7613      | 0.6928       |
-| "                 | "                     | 3e-05 | 0.7591      | 0.6918       |
-| "                 | "                     | 5e-05 | 0.7578      | 0.6911       |
+| **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) | (uniform_loss, align_loss) w/ STS-B (test) |
+|-------------------|-----------------------|-------|-------------|--------------|--------------------------------------------|
+| m-bert            | -                     | -     | 0.3026      | 0.2226       |                                            |
+| Sup-SimCSE-m-bert | snli_1.0_train.ko.tsv | 1e-05 | 0.7613      | 0.6928       |                                            |
+| "                 | "                     | 3e-05 | 0.7591      | 0.6935       | (-1.9488, 0.2266)                          |
+| "                 | "                     | 5e-05 | 0.7578      | 0.6911       |                                            |
+
+Sup-SimCSE-m-bert
 
 * Used multilingual BERT based model (m-bert: bert-base-multilingual-uncased)
 * Trained with snli_1.0_train.ko.tsv.
