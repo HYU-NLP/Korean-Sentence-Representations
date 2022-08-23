@@ -213,12 +213,6 @@ def main():
         eval_dataset=eval_dataset
     )
 
-    logger.info("***** Running Evaluation w/ validation-set before training *****")
-    logger.info(trainer.evaluate())
-
-    logger.info("***** Running Evaluation w/ test-set before training *****")
-    logger.info(trainer.evaluate(eval_dataset=test_dataset))
-
     if training_args.training_mode != TrainingArguments.MODE_MBERT:
         trainer.train()
         trainer.save_model()
@@ -243,24 +237,25 @@ class TrainingArguments(transformers.TrainingArguments):
         MODE_MBERT
     ]
 
-    STRATEGY_STEPS = 10
+    STRATEGY = 'no'  # FIXME revert to 'steps'
+    STRATEGY_STEPS = 250
 
     # Trainer Arguments --
     output_dir: str = field(default='./output_dir')
     overwrite_output_dir: bool = field(default=True)
 
-    evaluation_strategy: str = field(default='steps')
+    evaluation_strategy: str = field(default=STRATEGY)
     eval_steps: int = field(default=STRATEGY_STEPS)
-    save_strategy: str = field(default='steps')
+    save_strategy: str = field(default=STRATEGY)
     save_steps: int = field(default=STRATEGY_STEPS)
-    logging_strategy: str = field(default='steps')
+    logging_strategy: str = field(default=STRATEGY)
     logging_steps: int = field(default=STRATEGY_STEPS)
     load_best_model_at_end: bool = field(default=True)
     metric_for_best_model: str = field(default='kor_stsb_spearman')  # See CLTrainer
     report_to: str = field(default='tensorboard')
 
     num_train_epochs: int = field(default=1)
-    max_steps: int = field(default=100)
+    max_steps: int = field(default=-1)
     per_device_train_batch_size: int = field(default=64)
     per_device_eval_batch_size: int = field(default=64)
 
