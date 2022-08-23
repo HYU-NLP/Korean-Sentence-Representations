@@ -53,6 +53,7 @@ def main():
     config = BertConfig.from_pretrained(training_args.model_name_or_path)
 
     train_dataset = None
+
     eval_dataset = load_dataset('csv', data_files={'valid': training_args.eval_file}, sep='\t', quoting=csv.QUOTE_NONE)
     eval_dataset = eval_dataset['valid']
 
@@ -228,16 +229,18 @@ class TrainingArguments(transformers.TrainingArguments):
         MODE_MBERT
     ]
 
+    STRATEGY_STEPS = 10
+
     # Trainer Arguments --
     output_dir: str = field(default='./output_dir')
     overwrite_output_dir: bool = field(default=True)
 
     evaluation_strategy: str = field(default='steps')
-    eval_steps: int = field(default=250)
+    eval_steps: int = field(default=STRATEGY_STEPS)
     save_strategy: str = field(default='steps')
-    save_steps: int = field(default=250)
+    save_steps: int = field(default=STRATEGY_STEPS)
     logging_strategy: str = field(default='steps')
-    logging_steps: int = field(default=250)
+    logging_steps: int = field(default=STRATEGY_STEPS)
     load_best_model_at_end: bool = field(default=True)
     metric_for_best_model: str = field(default='kor_stsb_spearman')  # See CLTrainer
     report_to: str = field(default='tensorboard')
@@ -284,6 +287,7 @@ class TrainingArguments(transformers.TrainingArguments):
             raise ValueError(
                 f'{self.training_mode} is not a valid training_mode. Valid modes are {self.MODE_ALL}.'
             )
+
         elif self.is_mode_sup():
             if self.pooler_type != POOLER_TYPE_CLS:
                 raise ValueError(
@@ -295,6 +299,7 @@ class TrainingArguments(transformers.TrainingArguments):
                 raise ValueError(
                     'train_file and eval_file must be snli_1.0_train and sts-dev when training_mode is MODE_SUP'
                 )
+
         elif self.is_mode_mbert():
             if 'bert-base-multilingual' not in self.model_name_or_path:
                 raise ValueError(
