@@ -114,14 +114,14 @@ class CLTrainer(Trainer):
             for i in range(enc2.shape[0]):
                 sys_score = similarity(enc1[i], enc2[i])
 
-                batch_predict.append(sys_score)  # FIXME remove
-                batch_labels.append(gs_scores[i])  # FIXME remove
+                # batch_predict.append(sys_score)  # FIXME remove
+                # batch_labels.append(gs_scores[i])  # FIXME remove
 
                 predict.append(sys_score)
                 labels.append(gs_scores[i])
 
-            spearman_for_batch = spearmanr(batch_predict, batch_labels)[0]  # FIXME remove
-            print(f'spearman_for_batch - {spearman_for_batch}')  # FIXME remove
+            # spearman_for_batch = spearmanr(batch_predict, batch_labels)[0]  # FIXME remove
+            # print(f'spearman_for_batch - {spearman_for_batch}')  # FIXME remove
 
         metrics = {
             'eval_kor_stsb_spearman': spearmanr(predict, labels)[0],
