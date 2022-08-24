@@ -1,4 +1,5 @@
 import argparse
+import argparse
 import csv
 import gzip
 import logging
@@ -29,8 +30,8 @@ PRETRAINED_MODELS = ['bert-base-nli-cls-token',
                      'roberta-large-nli-mean-tokens']
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--seed', default=1, type=int)
-parser.add_argument('--model_name', default='bert-base-uncased', type=str)
+parser.add_argument('--seed', default=42, type=int)
+parser.add_argument('--model_name', default='bert-base-multilingual-uncased', type=str)
 parser.add_argument('--pooling', default='cls', type=str) # BERT_T pooling
 parser.add_argument('--pooling2', default='mean', type=str) # BERT_F pooling
 parser.add_argument('--eval_step', default=50, type=int)
@@ -50,6 +51,7 @@ parser.add_argument('--clone', default=True, action='store_true')
 parser.add_argument('--disable_tqdm', default=False, action='store_true')
 parser.add_argument('--obj', default='SG-OPT', type=str)
 parser.add_argument('--device', default='cuda:1', type=str)
+parser.add_argument('--max_seq_length', default=128, type=int)
 
 args = parser.parse_args()
 for a in args.__dict__:
@@ -66,19 +68,13 @@ logging.basicConfig(format='%(asctime)s - %(message)s',
                     level=logging.INFO,
                     handlers=[LoggingHandler()])
 
-sts_dataset_path = 'stsbenchmark.tsv.gz'
-
-args_string = args.model_name + '-' + str(args.seed) + '-' + str(args.eps) + '-' + args.pooling + '-' +  str(args.lmin) + '-' + str(args.lmax)
-logging.info(f'args_string: {args_string}')
-model_save_path = f'output/{args_string}'
-
 if args.model_name in PRETRAINED_MODELS:
     logging.info('Loading from SBERT')
     pretrained = SentenceTransformer(args.model_name)
     word_embedding_model = pretrained._first_module()
 else:
     model_args = {'output_hidden_states': True, 'output_attentions': True}
-    word_embedding_model = Transformer(args.model_name, model_args=model_args)
+    word_embedding_model = Transformer(args.model_name, model_args=model_args, max_seq_length=args.max_seq_length)
 
 pooling_model = models.Pooling(
     word_embedding_model.get_word_embedding_dimension(),
@@ -89,37 +85,43 @@ pooling_model = models.Pooling(
 modules = [word_embedding_model, pooling_model]
 model = SentenceTransformer(modules=modules, name=args.model_name, device=args.device)
 
-train_samples = [] 
-with gzip.open(sts_dataset_path, 'rt', encoding='utf-8') as fIn:
-    reader = csv.DictReader(fIn, delimiter='\t', quoting=csv.QUOTE_NONE)
-    for row in reader:
-        train_samples.append(InputExample(texts=[row['sentence1']]))
-        train_samples.append(InputExample(texts=[row['sentence2']]))
+logging.info(f"Read datasets")
 
-train_dataset = SentencesDataset(train_samples, model=model)
+dataset_samples={}
+for i in ['train','dev','test']:
+    samples=[]
+    if i == 'train': 
+        dataset_path = f'data/KorNLI/snli_1.0_{i}.ko.tsv'
+        open_data_dir = open(dataset_path,'r')
+        reader = csv.DictReader(open_data_dir, delimiter='\t', quoting=csv.QUOTE_NONE)
+        for row in reader:
+            if row['sentence2'] == 'N/A' or row['sentence2'] == 'n/a':
+                pass
+            else: 
+                samples.append(InputExample(texts=[row['sentence1']]))
+                samples.append(InputExample(texts=[row['sentence2']]))
+    else : 
+        dataset_path = f'data/KorSTS/sts-{i}.tsv'
+        open_data_dir = open(dataset_path,'r')
+        reader = csv.DictReader(open_data_dir, delimiter='\t', quoting=csv.QUOTE_NONE)
+        for row in reader:
+            score = float(row['score']) / 5.0
+            samples.append(InputExample(texts=[row['sentence1'], row['sentence2']], label=score))
+    dataset_samples[i] = samples
+    
+train_dataset = SentencesDataset(dataset_samples['train'], model=model)
 train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size)
 train_loss = Loss(model, args)
 
-logging.info(f"Read eval dataset")
-dev_samples = []
-test_samples = []
-
-with gzip.open(sts_dataset_path, 'rt', encoding='utf8') as fIn:
-    reader = csv.DictReader(fIn, delimiter='\t', quoting=csv.QUOTE_NONE)
-    label2int = {"contradiction": 0, "entailment": 1, "neutral": 2}
-    for row in reader: # normalizing STSB score(0 ~ 5) -> 0 ~ 1
-        if row['split'] == 'dev':
-            score = float(row['score']) / 5.0 #Normalize score to range 0 ... 1
-            dev_samples.append(InputExample(texts=[row['sentence1'], row['sentence2']], label=score))
-        elif row['split'] == 'test':
-            score = float(row['score']) / 5.0  # Normalize score to range 0 ... 1
-            test_samples.append(InputExample(texts=[row['sentence1'], row['sentence2']], label=score))
-
-    dev_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(dev_samples, batch_size=args.batch_size, name=f'stsb-dev', main_similarity=SimilarityFunction.COSINE)
-    test_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(test_samples, batch_size=args.batch_size, name=f'stsb-test', main_similarity=SimilarityFunction.COSINE)
+dev_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(dataset_samples['dev'], batch_size=args.batch_size, name=f'korsts-dev', main_similarity=SimilarityFunction.COSINE)
+test_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(dataset_samples['test'], batch_size=args.batch_size, name=f'korsts-test', main_similarity=SimilarityFunction.COSINE)
 
 warmup_steps = math.ceil(len(train_dataset) * args.num_epochs / args.batch_size * 0.1) #10% of train data for warm-up
 logging.info("Warmup-steps: {}".format(warmup_steps))
+
+args_string = args.model_name + '-' + str(args.seed) + '-' + str(args.lr) + '-' + str(args.max_seq_length) + '-' +  str(args.es)
+logging.info(f'args_string: {args_string}')
+model_save_path = f'output/{args_string}'
 
 model.fit(train_objectives=[(train_dataloader, train_loss)],
           dev_evaluator=dev_evaluator,
@@ -136,5 +138,5 @@ logging.info('Training finished.')
 
 dev_score = dev_evaluator(model, output_path=model_save_path)
 test_score = test_evaluator(model, output_path=model_save_path)
-print(dev_score)
-print(test_score)
+print(f'dev_score : {dev_score}')
+print(f'test_score : {test_score}')
