@@ -1,4 +1,5 @@
 .idea
 *.pyc
 test.py
-gpu*
+sup*
+unsup*

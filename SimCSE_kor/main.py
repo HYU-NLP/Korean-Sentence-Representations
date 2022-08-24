@@ -249,7 +249,7 @@ def main():
     )
 
     if training_args.training_mode != TrainingArguments.MODE_MBERT:
-        trainer.train()
+        trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
         trainer.save_model()
         trainer.save_state()
 
@@ -267,7 +267,7 @@ class TrainingArguments(transformers.TrainingArguments):
     MODE_SUP_HARD_NEG = 'sup'
     MODE_MBERT = 'mbert'
     MODE_ALL = [
-        # MODE_UNSUP,
+        MODE_UNSUP,
         MODE_SUP_HARD_NEG,
         MODE_MBERT
     ]
@@ -307,7 +307,7 @@ class TrainingArguments(transformers.TrainingArguments):
     hard_negative_weight: float = field(default=0)
 
     training_mode: str = field(default=MODE_UNSUP)
-    train_file: str = field(default='./data/KorNLI/snli_1.0_train.ko.tsv')
+    train_file: str = field(default='./data/korean_news_data.txt')
     eval_file: str = field(default='./data/KorSTS/sts-dev.tsv')
     test_file: str = field(default='./data/KorSTS/sts-test.tsv')
     pooler_type: str = field(default=POOLER_TYPE_CLS)
