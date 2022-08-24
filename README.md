@@ -90,8 +90,8 @@ Sup-SimCSE-m-bert
 | **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) |
 |-------------------|-----------------------|-------|-------------|--------------|
 | m-bert            | -                     | -     | 0.3026      | 0.2226       |
-| Sup-SG-M-BERT     | snli_1.0_train.ko.tsv | 1e-05 | 0.7613      | 0.6928       |
-| "                 | "                     | 3e-05 | 0.7591      | 0.6935       |
+| Sup-SG-M-BERT     | snli_1.0_train.ko.tsv | 1e-05 | Evaluating      | Evaluating       |
+| "                 | "                     | 3e-05 | 0.7204      | 0.6321       |
 | "                 | "                     | 5e-05 | 0.7129      | 0.6267       |
 
 Sup-SG-M-BERT
