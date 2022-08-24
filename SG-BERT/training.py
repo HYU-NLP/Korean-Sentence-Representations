@@ -30,9 +30,9 @@ PRETRAINED_MODELS = ['bert-base-nli-cls-token',
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', default=1, type=int)
-parser.add_argument('--model_name', default='klue/bert-base', type=str)
-parser.add_argument('--pooling', default='cls', type=str)
-parser.add_argument('--pooling2', default='mean', type=str)
+parser.add_argument('--model_name', default='bert-base-uncased', type=str)
+parser.add_argument('--pooling', default='cls', type=str) # BERT_T pooling
+parser.add_argument('--pooling2', default='mean', type=str) # BERT_F pooling
 parser.add_argument('--eval_step', default=50, type=int)
 parser.add_argument('--num_epochs', default=1, type=int)
 parser.add_argument('--lr', default=5e-5, type=float)
@@ -49,7 +49,7 @@ parser.add_argument('--freeze', default=True, action='store_true')
 parser.add_argument('--clone', default=True, action='store_true')
 parser.add_argument('--disable_tqdm', default=False, action='store_true')
 parser.add_argument('--obj', default='SG-OPT', type=str)
-parser.add_argument('--device', default='cuda:0', type=str)
+parser.add_argument('--device', default='cuda:1', type=str)
 
 args = parser.parse_args()
 for a in args.__dict__:
