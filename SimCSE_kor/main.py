@@ -228,7 +228,7 @@ class TrainingArguments(transformers.TrainingArguments):
     Default arguments are assumed you are running Supervised SimCSE with korNLI with m-bert.
     """
 
-    # MODE_UNSUP = 'unsup'
+    MODE_UNSUP = 'unsup'
     MODE_SUP_HARD_NEG = 'sup'
     MODE_MBERT = 'mbert'
     MODE_ALL = [
@@ -237,7 +237,7 @@ class TrainingArguments(transformers.TrainingArguments):
         MODE_MBERT
     ]
 
-    STRATEGY = 'no'  # FIXME revert to 'steps'
+    STRATEGY = 'steps'
     STRATEGY_STEPS = 250
 
     # Trainer Arguments --
@@ -270,12 +270,15 @@ class TrainingArguments(transformers.TrainingArguments):
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
 
-    training_mode: str = field(default=MODE_SUP_HARD_NEG)
+    training_mode: str = field(default=MODE_UNSUP)
     train_file: str = field(default='./data/KorNLI/snli_1.0_train.ko.tsv')
     eval_file: str = field(default='./data/KorSTS/sts-dev.tsv')
     test_file: str = field(default='./data/KorSTS/sts-test.tsv')
     pooler_type: str = field(default=POOLER_TYPE_CLS)
     mlp_only_train: bool = field(default=False)
+
+    def is_mode_unsup(self):
+        return self.training_mode == TrainingArguments.MODE_UNSUP
 
     def is_mode_sup(self):
         return self.training_mode == TrainingArguments.MODE_SUP_HARD_NEG
@@ -307,6 +310,13 @@ class TrainingArguments(transformers.TrainingArguments):
             if self.train_file in 'snli_1.0_train' and self.eval_file in 'sts-dev':
                 raise ValueError(
                     'train_file and eval_file must be snli_1.0_train and sts-dev when training_mode is MODE_SUP'
+                )
+
+        elif self.is_mode_unsup():
+            if self.pooler_type != POOLER_TYPE_CLS or self.mlp_only_train is True:
+                raise ValueError(
+                    f'{self.pooler_type} is not a valid pooler type for unsupervised training. '
+                    f'Valid type should be {POOLER_TYPE_CLS}.'
                 )
 
         elif self.is_mode_mbert():
