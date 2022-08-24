@@ -53,11 +53,22 @@ def main():
     config = BertConfig.from_pretrained(training_args.model_name_or_path)
 
     train_dataset = None
-    eval_dataset = load_dataset('csv', data_files={'valid': training_args.eval_file}, sep='\t', quoting=csv.QUOTE_NONE)
-    eval_dataset = eval_dataset['valid']
 
-    test_dataset = load_dataset('csv', data_files={'test': training_args.test_file}, sep='\t', quoting=csv.QUOTE_NONE)
-    test_dataset = test_dataset['test']
+    eval_dataset = load_dataset(
+        'csv',
+        data_files={'valid': training_args.eval_file},
+        sep='\t',
+        quoting=csv.QUOTE_NONE,
+        split='valid',
+    )
+
+    test_dataset = load_dataset(
+        'csv',
+        data_files={'test': training_args.test_file},
+        sep='\t',
+        quoting=csv.QUOTE_NONE,
+        split='test',
+    )
 
     if training_args.training_mode == TrainingArguments.MODE_SUP_HARD_NEG:
         train_dataset = load_dataset(
@@ -65,9 +76,10 @@ def main():
             data_files={'train': training_args.train_file},
             sep='\t',
             quoting=csv.QUOTE_NONE,
+            split='train',
         )
 
-        column_names = train_dataset['train'].column_names
+        column_names = train_dataset.column_names
 
         def preprocess_train_function(examples):
             total = len(examples[column_names[0]])
@@ -110,7 +122,7 @@ def main():
             return result
 
         with logging_redirect_tqdm():
-            train_dataset = train_dataset['train'].map(
+            train_dataset = train_dataset.map(
                 preprocess_train_function,
                 batched=True,
                 remove_columns=column_names,
@@ -201,15 +213,12 @@ def main():
         eval_dataset=eval_dataset
     )
 
-    logger.info("***** Running Evaluation before training *****")
-    logger.info(trainer.evaluate())
-
     if training_args.training_mode != TrainingArguments.MODE_MBERT:
         trainer.train()
         trainer.save_model()
         trainer.save_state()
 
-    logger.info("***** Running Evaluate via testset via best model *****")
+    logger.info("***** Running Evaluate w/ testset via best model *****")
     logger.info(trainer.evaluate(eval_dataset=test_dataset))
 
 
@@ -219,7 +228,7 @@ class TrainingArguments(transformers.TrainingArguments):
     Default arguments are assumed you are running Supervised SimCSE with korNLI with m-bert.
     """
 
-    # MODE_UNSUP = 'unsup'
+    MODE_UNSUP = 'unsup'
     MODE_SUP_HARD_NEG = 'sup'
     MODE_MBERT = 'mbert'
     MODE_ALL = [
@@ -228,22 +237,25 @@ class TrainingArguments(transformers.TrainingArguments):
         MODE_MBERT
     ]
 
+    STRATEGY = 'steps'
+    STRATEGY_STEPS = 250
+
     # Trainer Arguments --
     output_dir: str = field(default='./output_dir')
     overwrite_output_dir: bool = field(default=True)
 
-    evaluation_strategy: str = field(default='steps')
-    eval_steps: int = field(default=250)
-    save_strategy: str = field(default='steps')
-    save_steps: int = field(default=250)
-    logging_strategy: str = field(default='steps')
-    logging_steps: int = field(default=250)
+    evaluation_strategy: str = field(default=STRATEGY)
+    eval_steps: int = field(default=STRATEGY_STEPS)
+    save_strategy: str = field(default=STRATEGY)
+    save_steps: int = field(default=STRATEGY_STEPS)
+    logging_strategy: str = field(default=STRATEGY)
+    logging_steps: int = field(default=STRATEGY_STEPS)
     load_best_model_at_end: bool = field(default=True)
     metric_for_best_model: str = field(default='kor_stsb_spearman')  # See CLTrainer
     report_to: str = field(default='tensorboard')
 
     num_train_epochs: int = field(default=1)
-    # max_steps: int = field(default=30)
+    max_steps: int = field(default=-1)
     per_device_train_batch_size: int = field(default=64)
     per_device_eval_batch_size: int = field(default=64)
 
@@ -258,12 +270,15 @@ class TrainingArguments(transformers.TrainingArguments):
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
 
-    training_mode: str = field(default=MODE_SUP_HARD_NEG)
+    training_mode: str = field(default=MODE_UNSUP)
     train_file: str = field(default='./data/KorNLI/snli_1.0_train.ko.tsv')
     eval_file: str = field(default='./data/KorSTS/sts-dev.tsv')
     test_file: str = field(default='./data/KorSTS/sts-test.tsv')
     pooler_type: str = field(default=POOLER_TYPE_CLS)
     mlp_only_train: bool = field(default=False)
+
+    def is_mode_unsup(self):
+        return self.training_mode == TrainingArguments.MODE_UNSUP
 
     def is_mode_sup(self):
         return self.training_mode == TrainingArguments.MODE_SUP_HARD_NEG
@@ -284,6 +299,7 @@ class TrainingArguments(transformers.TrainingArguments):
             raise ValueError(
                 f'{self.training_mode} is not a valid training_mode. Valid modes are {self.MODE_ALL}.'
             )
+
         elif self.is_mode_sup():
             if self.pooler_type != POOLER_TYPE_CLS:
                 raise ValueError(
@@ -295,6 +311,14 @@ class TrainingArguments(transformers.TrainingArguments):
                 raise ValueError(
                     'train_file and eval_file must be snli_1.0_train and sts-dev when training_mode is MODE_SUP'
                 )
+
+        elif self.is_mode_unsup():
+            if self.pooler_type != POOLER_TYPE_CLS or self.mlp_only_train is True:
+                raise ValueError(
+                    f'{self.pooler_type} is not a valid pooler type for unsupervised training. '
+                    f'Valid type should be {POOLER_TYPE_CLS}.'
+                )
+
         elif self.is_mode_mbert():
             if 'bert-base-multilingual' not in self.model_name_or_path:
                 raise ValueError(

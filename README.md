@@ -63,12 +63,14 @@ Below is important parameters of re-imple:
 
 #### Result
 
-| **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) |
-|-------------------|-----------------------|-------|-------------|--------------|
-| m-bert            | -                     | -     | 0.3026      | 0.2226       |
-| Sup-SimCSE-m-bert | snli_1.0_train.ko.tsv | 1e-05 | 0.7613      | 0.6928       |
-| "                 | "                     | 3e-05 | 0.7591      | 0.6918       |
-| "                 | "                     | 5e-05 | 0.7578      | 0.6911       |
+| **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) | (uniform_loss, align_loss) w/ STS-B (test) |
+|-------------------|-----------------------|-------|-------------|--------------|--------------------------------------------|
+| m-bert            | -                     | -     | 0.3026      | 0.2226       |                                            |
+| Sup-SimCSE-m-bert | snli_1.0_train.ko.tsv | 1e-05 | 0.7613      | 0.6928       |                                            |
+| "                 | "                     | 3e-05 | 0.7591      | 0.6935       | (-1.9488, 0.2266)                          |
+| "                 | "                     | 5e-05 | 0.7578      | 0.6911       |                                            |
+
+Sup-SimCSE-m-bert
 
 * Used multilingual BERT based model (m-bert: bert-base-multilingual-uncased)
 * Trained with snli_1.0_train.ko.tsv.
@@ -78,5 +80,29 @@ Below is important parameters of re-imple:
 * Below is common parameters for above experiments:
     * max_seq_length: 32
     * per_device_train_batch_size: 64
+    * _n_gpu: 1
+    * seed: 42
+
+# SG-BERT_kor 
+
+#### Result
+
+| **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) |
+|-------------------|-----------------------|-------|-------------|--------------|
+| m-bert            | -                     | -     | 0.3026      | 0.2226       |
+| Sup-SG-M-BERT     | snli_1.0_train.ko.tsv | 1e-05 | 0.7105      | 0.6265       |
+| "                 | "                     | 3e-05 | 0.7204      | 0.6321       |
+| "                 | "                     | 5e-05 | 0.7129      | 0.6267       |
+
+Sup-SG-M-BERT
+
+* Used multilingual BERT based model (m-bert: bert-base-multilingual-uncased)
+* Trained with snli_1.0_train.ko.tsv
+* Validated with sts-dev.tsv while training
+* Tested with sts-test.tsv with validation best score checkpoint while training
+* Used to spearman correlation
+* Parameters for above experiments:
+    * max_seq_length: 128
+    * per_device_train_batch_size: 16
     * _n_gpu: 1
     * seed: 42
