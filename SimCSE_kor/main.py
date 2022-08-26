@@ -70,63 +70,10 @@ def main():
         split='test',
     )
 
-    if training_args.training_mode == TrainingArguments.MODE_SUP_HARD_NEG:
-        train_dataset = load_dataset(
-            'csv',
-            data_files={'train': training_args.train_file},
-            sep='\t',
-            quoting=csv.QUOTE_NONE,
-            split='train',
-        )
-
-        column_names = train_dataset.column_names
-
-        def preprocess_train_function(examples):
-            total = len(examples[column_names[0]])
-
-            # These kinds of data exist in snli_1.0_train.ko.tsv, which interpreted as None by load_dataset, which needs to be removed.
-            # Examples)
-            #  - 설명할 그림을 볼 수 없습니다. N/A neutral
-            #  - 설명할 그림을 볼 수 없습니다. N/A entailment
-            #  - 설명할 그림을 볼 수 없습니다. N/A contradiction
-            abnormal_examples_index = []
-            for i in range(total):
-                if (
-                        examples[column_names[0]][i] == None
-                        or examples[column_names[1]][i] == None
-                        or examples[column_names[2]][i] == None
-                ):
-                    logger.info(
-                        f'Example that will be removed: {examples[column_names[0]][i]} {examples[column_names[1]][i]} {examples[column_names[2]][i]}'
-                    )
-
-                    abnormal_examples_index.append(i)
-
-            # Remove from the end to avoid index shift.
-            for i in reversed(abnormal_examples_index):
-                del examples[column_names[0]][i]
-                del examples[column_names[1]][i]
-                del examples[column_names[2]][i]
-                total -= 1
-
-            copied = examples[column_names[0]] + examples[column_names[1]] + examples[column_names[2]]
-
-            tokenized = tokenizer(copied, truncation=True, max_length=training_args.max_seq_length)
-
-            result = {}
-            for key in tokenized:
-                result[key] = [
-                    [tokenized[key][i], tokenized[key][i + total], tokenized[key][i + total * 2]] for i in range(total)
-                ]
-
-            return result
-
-        with logging_redirect_tqdm():
-            train_dataset = train_dataset.map(
-                preprocess_train_function,
-                batched=True,
-                remove_columns=column_names,
-            )
+    if (
+            training_args.training_mode == TrainingArguments.MODE_SUP_HARD_NEG
+            or training_args.training_mode == TrainingArguments.MODE_UNSUP
+    ):
 
         if 'roberta' in training_args.model_name_or_path:
             # Work around when "loading best model" on transformers package 4.2.1 version
@@ -147,6 +94,94 @@ def main():
             model = BertForCL.from_pretrained(training_args.model_name_or_path, config=config)
         else:
             raise NotImplementedError
+
+        if training_args.training_mode == TrainingArguments.MODE_SUP_HARD_NEG:
+            train_dataset = load_dataset(
+                'csv',
+                data_files={'train': training_args.train_file},
+                sep='\t',
+                quoting=csv.QUOTE_NONE,
+                split='train',
+            )
+
+            column_names = train_dataset.column_names
+
+            def preprocess_train_function(examples):
+                total = len(examples[column_names[0]])
+
+                # These kinds of data exist in snli_1.0_train.ko.tsv, which interpreted as None by load_dataset, which needs to be removed.
+                # Examples)
+                #  - 설명할 그림을 볼 수 없습니다. N/A neutral
+                #  - 설명할 그림을 볼 수 없습니다. N/A entailment
+                #  - 설명할 그림을 볼 수 없습니다. N/A contradiction
+                abnormal_examples_index = []
+                for i in range(total):
+                    if (
+                            examples[column_names[0]][i] == None
+                            or examples[column_names[1]][i] == None
+                            or examples[column_names[2]][i] == None
+                    ):
+                        logger.info(
+                            f'Example that will be removed: {examples[column_names[0]][i]} {examples[column_names[1]][i]} {examples[column_names[2]][i]}'
+                        )
+
+                        abnormal_examples_index.append(i)
+
+                # Remove from the end to avoid index shift.
+                for i in reversed(abnormal_examples_index):
+                    del examples[column_names[0]][i]
+                    del examples[column_names[1]][i]
+                    del examples[column_names[2]][i]
+                    total -= 1
+
+                copied = examples[column_names[0]] + examples[column_names[1]] + examples[column_names[2]]
+
+                tokenized = tokenizer(copied, truncation=True, max_length=training_args.max_seq_length)
+
+                result = {}
+                for key in tokenized:
+                    result[key] = [
+                        [tokenized[key][i], tokenized[key][i + total], tokenized[key][i + total * 2]] for i in
+                        range(total)
+                    ]
+
+                return result
+
+            with logging_redirect_tqdm():
+                train_dataset = train_dataset.map(
+                    preprocess_train_function,
+                    batched=True,
+                    remove_columns=column_names,
+                )
+
+        elif training_args.training_mode == TrainingArguments.MODE_UNSUP:
+            train_dataset = load_dataset(
+                'text',
+                data_files={'train': training_args.train_file},
+                split='train'
+            )
+
+            column_names = train_dataset.column_names
+
+            def preprocess_function(examples):
+                column_name = column_names[0]  # The only column name in unsup dataset
+
+                total = len(examples[column_name])  # Total len
+                copied = examples[column_name] + examples[column_name]  # Repeat itself
+
+                tokenized = tokenizer(copied, truncation=True, max_length=training_args.max_seq_length)
+
+                result = {}
+                for key in tokenized:
+                    result[key] = [[tokenized[key][i], tokenized[key][i + total]] for i in range(total)]
+
+                return result
+
+            train_dataset = train_dataset.map(
+                preprocess_function,
+                batched=True,
+                remove_columns=column_names,
+            )
 
     elif training_args.training_mode == TrainingArguments.MODE_MBERT:
         model = BertModel.from_pretrained(training_args.model_name_or_path)
@@ -214,7 +249,7 @@ def main():
     )
 
     if training_args.training_mode != TrainingArguments.MODE_MBERT:
-        trainer.train()
+        trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
         trainer.save_model()
         trainer.save_state()
 
@@ -232,7 +267,7 @@ class TrainingArguments(transformers.TrainingArguments):
     MODE_SUP_HARD_NEG = 'sup'
     MODE_MBERT = 'mbert'
     MODE_ALL = [
-        # MODE_UNSUP,
+        MODE_UNSUP,
         MODE_SUP_HARD_NEG,
         MODE_MBERT
     ]
@@ -248,6 +283,7 @@ class TrainingArguments(transformers.TrainingArguments):
     eval_steps: int = field(default=STRATEGY_STEPS)
     save_strategy: str = field(default=STRATEGY)
     save_steps: int = field(default=STRATEGY_STEPS)
+    save_total_limit: int = field(default=5)
     logging_strategy: str = field(default=STRATEGY)
     logging_steps: int = field(default=STRATEGY_STEPS)
     load_best_model_at_end: bool = field(default=True)
@@ -271,7 +307,7 @@ class TrainingArguments(transformers.TrainingArguments):
     hard_negative_weight: float = field(default=0)
 
     training_mode: str = field(default=MODE_UNSUP)
-    train_file: str = field(default='./data/KorNLI/snli_1.0_train.ko.tsv')
+    train_file: str = field(default='./data/korean_news_data.txt')
     eval_file: str = field(default='./data/KorSTS/sts-dev.tsv')
     test_file: str = field(default='./data/KorSTS/sts-test.tsv')
     pooler_type: str = field(default=POOLER_TYPE_CLS)
@@ -318,6 +354,9 @@ class TrainingArguments(transformers.TrainingArguments):
                     f'{self.pooler_type} is not a valid pooler type for unsupervised training. '
                     f'Valid type should be {POOLER_TYPE_CLS}.'
                 )
+
+            # TODO We need korean mal-mung-chi as self.train_file
+            # TODO eval_file is still 'self.eval_file in 'sts-dev'
 
         elif self.is_mode_mbert():
             if 'bert-base-multilingual' not in self.model_name_or_path:

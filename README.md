@@ -63,17 +63,18 @@ Below is important parameters of re-imple:
 
 #### Result
 
-| **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) | (uniform_loss, align_loss) w/ STS-B (test) |
-|-------------------|-----------------------|-------|-------------|--------------|--------------------------------------------|
-| m-bert            | -                     | -     | 0.3026      | 0.2226       |                                            |
-| Sup-SimCSE-m-bert | snli_1.0_train.ko.tsv | 1e-05 | 0.7613      | 0.6928       |                                            |
-| "                 | "                     | 3e-05 | 0.7591      | 0.6935       | (-1.9488, 0.2266)                          |
-| "                 | "                     | 5e-05 | 0.7578      | 0.6911       |                                            |
+| **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) | (uniform_loss, align_loss) |
+|-------------------|-----------------------|-------|-------------|--------------|----------------------------|
+| m-bert            | -                     | -     | 0.3026      | 0.2226       |                            |
+| Sup-SimCSE-m-bert | snli_1.0_train.ko.tsv | 1e-05 | 0.7650      | 0.6937       | (-2.0897, 0.2540)          |
+| "                 | "                     | 3e-05 | 0.7644      | 0.6996       | (-2.0793, 0.2434)          |
+| "                 | "                     | 5e-05 | 0.7559      | 0.6929       | (-2.1024, 0.2476)          |
 
 Sup-SimCSE-m-bert
 
+* uniform_loss, align_loss is calcuated w/ STS-B (test)
 * Used multilingual BERT based model (m-bert: bert-base-multilingual-uncased)
-* Trained with snli_1.0_train.ko.tsv.
+* Trained with snli_1.0_train.ko.tsv
 * Validated with sts-dev.tsv while training
 * Tested with sts-test.tsv with validation best score checkpoint while training
 * 'spearman' used for score
@@ -93,6 +94,8 @@ Sup-SimCSE-m-bert
 | Sup-SG-M-BERT     | snli_1.0_train.ko.tsv | 1e-05 | 0.7105      | 0.6265       |
 | "                 | "                     | 3e-05 | 0.7204      | 0.6321       |
 | "                 | "                     | 5e-05 | 0.7129      | 0.6267       |
+| SG-KoBERT         | "                     | 5e-05 | 0.6670      | 0.5529       |
+| "                 | korean_news_data.txt  | 5e-05 | 0.5856      | 0.4655       |
 
 Sup-SG-M-BERT
 
@@ -106,3 +109,9 @@ Sup-SG-M-BERT
     * per_device_train_batch_size: 16
     * _n_gpu: 1
     * seed: 42
+
+SG-BERT
+
+* Used KoBERT based model (m-bert: skt/kobert-based-v1)
+* Trained with snli_1.0_train.ko.tsv and korean_news_data.txt
+* Others are same as Sup-SG-M-BERT
