@@ -59,23 +59,22 @@ Below is important parameters of re-imple:
 * per_device_train_batch_size: 64
 * _n_gpu: 1
 
-# SimCSE_kor
+# SimCSE_mul
 
 #### Result
 
-| **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) | (uniform_loss, align_loss) |
-|-------------------|-----------------------|-------|-------------|--------------|----------------------------|
-| m-bert            | -                     | -     | 0.3026      | 0.2226       |                            |
-| ko-bert           | -                     | -     | 0.3413      | 0.2566       |
-| Sup-SimCSE-m-bert | snli_1.0_train.ko.tsv | 1e-05 | 0.7650      | 0.6937       | (-2.0897, 0.2540)          |
-| "                 | "                     | 3e-05 | 0.7644      | 0.6996       | (-2.0793, 0.2434)          |
-| "                 | "                     | 5e-05 | 0.7559      | 0.6929       | (-2.1024, 0.2476)          |
+| **Model**                                    | Trained with                | lr    | STS-B (dev) | STS-B (test) | (uniform_loss, align_loss) |
+|----------------------------------------------|-----------------------------|-------|-------------|--------------|----------------------------|
+| m-bert                                       | -                           | -     | 0.3026      | 0.2226       |                            |
+| ko-bert                                      | -                           | -     | 0.3413      | 0.2566       |                            |
+| Sup-SimCSE-m-bert                            | snli_1.0_train.ko.tsv       | 1e-05 | 0.7650      | 0.6937       | (-2.0897, 0.2540)          |
+| "                                            | "                           | 3e-05 | 0.7644      | 0.6996       | (-2.0793, 0.2434)          |
+| "                                            | "                           | 5e-05 | 0.7559      | 0.6929       | (-2.1024, 0.2476)          |
+| Unsup-SimCSE-ko-bert                         | korean_news_data.sample.txt | 3e-05 | ?           | ?            |                            |
+| Unsup-SimCSE-ko-bert (w/ random permutation) | korean_news_data.sample.txt | 3e-05 | ?           | ?            |                            |
 
-Sup-SimCSE-m-bert
+Common for all
 
-* uniform_loss, align_loss is calcuated w/ STS-B (test)
-* Used multilingual BERT based model (m-bert: bert-base-multilingual-uncased)
-* Trained with snli_1.0_train.ko.tsv
 * Validated with sts-dev.tsv while training
 * Tested with sts-test.tsv with validation best score checkpoint while training
 * 'spearman' used for score
@@ -84,6 +83,15 @@ Sup-SimCSE-m-bert
     * per_device_train_batch_size: 64
     * _n_gpu: 1
     * seed: 42
+
+Unsup-SimCSE-ko-bert
+
+* `korean_news_data.sample.txt` is a sample of `korean_news_data.txt`, created as `$ head -50000 korean_news_data.txt > korean_news_data.sample.txt`.
+
+Sup-SimCSE-m-bert
+
+* uniform_loss, align_loss is calcuated w/ STS-B (test)
+* Used multilingual BERT based model (m-bert: bert-base-multilingual-uncased)
 
 # SG-BERT_kor 
 

@@ -1,5 +1,7 @@
+import copy
 import csv
 import logging
+import random
 from dataclasses import dataclass, field
 from typing import Union, Optional, List, Dict
 
@@ -168,6 +170,7 @@ def main():
                 or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP_SAMPLE
                 or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
                 or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE
+                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN
         ):
             train_dataset = load_dataset(
                 'text',
@@ -181,7 +184,19 @@ def main():
                 column_name = column_names[0]  # The only column name in unsup dataset
 
                 total = len(examples[column_name])  # Total len
-                copied = examples[column_name] + examples[column_name]  # Repeat itself
+
+                if training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN:
+                    copied_examples = copy.deepcopy(examples[column_name])
+                    permuted_examples = []
+                    for example in copied_examples:
+                        t = example.split()
+                        random.shuffle(t)
+                        permuted_examples.append(' '.join(t))
+
+                    copied = examples[column_name] + permuted_examples
+
+                else:
+                    copied = examples[column_name] + examples[column_name]  # Repeat itself
 
                 tokenized = tokenizer(copied, truncation=True, max_length=training_args.max_seq_length)
 
@@ -284,6 +299,7 @@ class TrainingArguments(transformers.TrainingArguments):
     MODE_KOR_KOBERT = 'kobert'
     MODE_KOR_KOBERT_UNSUP = MODE_KOR_KOBERT + '_unsup'
     MODE_KOR_KOBERT_UNSUP_SAMPLE = MODE_KOR_KOBERT + '_unsup_sample'
+    MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN = MODE_KOR_KOBERT + '_unsup_sample_ran'
 
     MODE_ALL = [
         MODE_KOR_MBERT,
@@ -295,6 +311,7 @@ class TrainingArguments(transformers.TrainingArguments):
         MODE_KOR_KOBERT,
         MODE_KOR_KOBERT_UNSUP,
         MODE_KOR_KOBERT_UNSUP_SAMPLE,
+        MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN,
     ]
 
     STRATEGY = 'steps'
@@ -325,7 +342,7 @@ class TrainingArguments(transformers.TrainingArguments):
     fp16: bool = field(default=True)
 
     # Non-Trainer Arguments --
-    task_mode: str = field(default=MODE_KOR_KOBERT_UNSUP_SAMPLE)
+    task_mode: str = field(default=MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN)
 
     model_name_or_path: str = field(default='')  # Depends on task_mode
     max_seq_length: int = field(default=32)
@@ -407,6 +424,7 @@ class TrainingArguments(transformers.TrainingArguments):
         elif (
                 self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
                 or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE
+                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN
         ):
             self.model_name_or_path = 'skt/kobert-base-v1'
             self.pooler_type = POOLER_TYPE_CLS
