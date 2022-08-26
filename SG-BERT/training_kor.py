@@ -1,11 +1,11 @@
 import argparse
 import argparse
 import csv
-import gzip
 import logging
 import math
 import random
 import time
+from tqdm import tqdm
 
 import numpy as np
 import torch
@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader
 
 from loss import Loss
 from modules import SentencesDataset, SentenceTransformer
+from kobert_tokenizer import KoBERTTokenizer
 
 start_time = time.time()
 
@@ -31,7 +32,7 @@ PRETRAINED_MODELS = ['bert-base-nli-cls-token',
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', default=42, type=int)
-parser.add_argument('--model_name', default='bert-base-multilingual-uncased', type=str)
+parser.add_argument('--model_name', default='skt/kobert-base-v1', type=str) # MBERT : 'bert-base-multilingual-uncased', KoBERT : 'skt/kobert-base-v1'
 parser.add_argument('--pooling', default='cls', type=str) # BERT_T pooling
 parser.add_argument('--pooling2', default='mean', type=str) # BERT_F pooling
 parser.add_argument('--eval_step', default=50, type=int)
@@ -43,7 +44,7 @@ parser.add_argument('--eps', default=0.1, type=float)
 parser.add_argument('--lmin', default=0, type=int)
 parser.add_argument('--lmax', default=-1, type=int)
 parser.add_argument('--lamb', default=0.1, type=float)
-parser.add_argument('--es', default=10, type=int)
+parser.add_argument('--es', default=20, type=int) # early stopping patience
 parser.add_argument('--weight_decay', default=0, type=float)
 parser.add_argument('--training', default=True, action='store_true')
 parser.add_argument('--freeze', default=True, action='store_true')
@@ -52,6 +53,7 @@ parser.add_argument('--disable_tqdm', default=False, action='store_true')
 parser.add_argument('--obj', default='SG-OPT', type=str)
 parser.add_argument('--device', default='cuda:1', type=str)
 parser.add_argument('--max_seq_length', default=128, type=int)
+parser.add_argument('--news_data', default=True, type=bool) # train to korean_news_data.txt
 
 args = parser.parse_args()
 for a in args.__dict__:
@@ -75,6 +77,8 @@ if args.model_name in PRETRAINED_MODELS:
 else:
     model_args = {'output_hidden_states': True, 'output_attentions': True}
     word_embedding_model = Transformer(args.model_name, model_args=model_args, max_seq_length=args.max_seq_length)
+    if args.model_name == 'skt/kobert-base-v1':
+        word_embedding_model.tokenizer = KoBERTTokenizer.from_pretrained(args.model_name)
 
 pooling_model = models.Pooling(
     word_embedding_model.get_word_embedding_dimension(),
@@ -91,15 +95,21 @@ dataset_samples={}
 for i in ['train','dev','test']:
     samples=[]
     if i == 'train': 
-        dataset_path = f'data/KorNLI/snli_1.0_{i}.ko.tsv'
-        open_data_dir = open(dataset_path,'r')
-        reader = csv.DictReader(open_data_dir, delimiter='\t', quoting=csv.QUOTE_NONE)
-        for row in reader:
-            if row['sentence2'] == 'N/A' or row['sentence2'] == 'n/a':
-                pass
-            else: 
-                samples.append(InputExample(texts=[row['sentence1']]))
-                samples.append(InputExample(texts=[row['sentence2']]))
+        if args.news_data == True:
+            dataset_path = 'data/korean_news_data/korean_news_data.txt'
+            open_data_dir = open(dataset_path,'r')
+            data = open_data_dir.read().splitlines()
+            samples = [InputExample(texts=[text]) for text in tqdm(data, desc='news data downloading')]
+        else : # does not use news data
+            dataset_path = f'data/KorNLI/snli_1.0_{i}.ko.tsv'
+            open_data_dir = open(dataset_path,'r')
+            reader = csv.DictReader(open_data_dir, delimiter='\t', quoting=csv.QUOTE_NONE)
+            for row in reader:
+                if row['sentence2'] == 'N/A' or row['sentence2'] == 'n/a':
+                    pass
+                else: 
+                    samples.append(InputExample(texts=[row['sentence1']]))
+                    samples.append(InputExample(texts=[row['sentence2']]))
     else : 
         dataset_path = f'data/KorSTS/sts-{i}.tsv'
         open_data_dir = open(dataset_path,'r')
