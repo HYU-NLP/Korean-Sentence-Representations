@@ -6,6 +6,7 @@ from typing import Union, Optional, List, Dict
 import torch
 import transformers
 from datasets import load_dataset
+from kobert_tokenizer import KoBERTTokenizer
 from tqdm.contrib.logging import logging_redirect_tqdm
 from transformers import (
     HfArgumentParser,
@@ -14,8 +15,8 @@ from transformers import (
     BertTokenizer, BertConfig, PreTrainedTokenizerBase, BertModel
 )
 
-from simcse_kor.models import BertForCL, RobertaForCL, POOLER_TYPE_CLS, POOLER_TYPE_ALL
-from simcse_kor.trainers import CLTrainer
+from simcse_mul.models import BertForCL, RobertaForCL, POOLER_TYPE_CLS, POOLER_TYPE_ALL
+from simcse_mul.trainers import CLTrainer
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,13 @@ def main():
     set_seed(training_args.seed)
 
     # Prepare tokenizer, dataset (+ dataloader), model, loss function, optimizer, etc --
-    tokenizer = BertTokenizer.from_pretrained(training_args.model_name_or_path)
+    if training_args.is_mbert_base():
+        tokenizer = BertTokenizer.from_pretrained(training_args.model_name_or_path)
+    elif training_args.is_kobert_base():
+        tokenizer = KoBERTTokenizer.from_pretrained(training_args.model_name_or_path)
+    else:
+        raise ValueError
+
     config = BertConfig.from_pretrained(training_args.model_name_or_path)
 
     train_dataset = None
@@ -70,11 +77,10 @@ def main():
         split='test',
     )
 
-    if (
-            training_args.training_mode == TrainingArguments.MODE_SUP_HARD_NEG
-            or training_args.training_mode == TrainingArguments.MODE_UNSUP
-    ):
+    if training_args.is_mode_no_train():
+        model = BertModel.from_pretrained(training_args.model_name_or_path)
 
+    else:
         if 'roberta' in training_args.model_name_or_path:
             # Work around when "loading best model" on transformers package 4.2.1 version
             RobertaForCL.temperature = training_args.temperature
@@ -95,7 +101,10 @@ def main():
         else:
             raise NotImplementedError
 
-        if training_args.training_mode == TrainingArguments.MODE_SUP_HARD_NEG:
+        if (
+                training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
+                or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE
+        ):
             train_dataset = load_dataset(
                 'csv',
                 data_files={'train': training_args.train_file},
@@ -154,7 +163,12 @@ def main():
                     remove_columns=column_names,
                 )
 
-        elif training_args.training_mode == TrainingArguments.MODE_UNSUP:
+        elif (
+                training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
+                or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP_SAMPLE
+                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
+                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE
+        ):
             train_dataset = load_dataset(
                 'text',
                 data_files={'train': training_args.train_file},
@@ -182,11 +196,6 @@ def main():
                 batched=True,
                 remove_columns=column_names,
             )
-
-    elif training_args.training_mode == TrainingArguments.MODE_MBERT:
-        model = BertModel.from_pretrained(training_args.model_name_or_path)
-    else:
-        raise NotImplementedError
 
     # Custom Data collator, because of data repeating in preprocess_function
     @dataclass
@@ -248,7 +257,10 @@ def main():
         eval_dataset=eval_dataset
     )
 
-    if training_args.training_mode != TrainingArguments.MODE_MBERT:
+    logger.info("***** Running Evaluate w/ valiation-set before training *****")
+    logger.info(trainer.evaluate())
+
+    if not training_args.is_mode_no_train():
         trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
         trainer.save_model()
         trainer.save_state()
@@ -263,13 +275,26 @@ class TrainingArguments(transformers.TrainingArguments):
     Default arguments are assumed you are running Supervised SimCSE with korNLI with m-bert.
     """
 
-    MODE_UNSUP = 'unsup'
-    MODE_SUP_HARD_NEG = 'sup'
-    MODE_MBERT = 'mbert'
+    MODE_KOR_MBERT = 'mbert'
+    MODE_KOR_MBERT_UNSUP = MODE_KOR_MBERT + '_unsup'
+    MODE_KOR_MBERT_UNSUP_SAMPLE = MODE_KOR_MBERT + '_unsup_sample'
+    MODE_KOR_MBERT_SUP_HARD_NEG = MODE_KOR_MBERT + '_sup',
+    MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE = MODE_KOR_MBERT + '_sup_sample',
+
+    MODE_KOR_KOBERT = 'kobert'
+    MODE_KOR_KOBERT_UNSUP = MODE_KOR_KOBERT + '_unsup'
+    MODE_KOR_KOBERT_UNSUP_SAMPLE = MODE_KOR_KOBERT + '_unsup_sample'
+
     MODE_ALL = [
-        MODE_UNSUP,
-        MODE_SUP_HARD_NEG,
-        MODE_MBERT
+        MODE_KOR_MBERT,
+        MODE_KOR_MBERT_UNSUP,
+        MODE_KOR_MBERT_UNSUP_SAMPLE,
+        MODE_KOR_MBERT_SUP_HARD_NEG,
+        MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE,
+
+        MODE_KOR_KOBERT,
+        MODE_KOR_KOBERT_UNSUP,
+        MODE_KOR_KOBERT_UNSUP_SAMPLE,
     ]
 
     STRATEGY = 'steps'
@@ -300,69 +325,105 @@ class TrainingArguments(transformers.TrainingArguments):
     fp16: bool = field(default=True)
 
     # Non-Trainer Arguments --
-    model_name_or_path: str = field(default='bert-base-multilingual-uncased')
+    task_mode: str = field(default=MODE_KOR_KOBERT_UNSUP_SAMPLE)
+
+    model_name_or_path: str = field(default='')  # Depends on task_mode
     max_seq_length: int = field(default=32)
 
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
 
-    training_mode: str = field(default=MODE_UNSUP)
-    train_file: str = field(default='./data/korean_news_data.txt')
-    eval_file: str = field(default='./data/KorSTS/sts-dev.tsv')
-    test_file: str = field(default='./data/KorSTS/sts-test.tsv')
-    pooler_type: str = field(default=POOLER_TYPE_CLS)
-    mlp_only_train: bool = field(default=False)
+    train_file: str = field(default='')  # Depends on task_mode
+    eval_file: str = field(default='')  # Depends on task_mode
+    test_file: str = field(default='')  # Depends on task_mode
+    pooler_type: str = field(default=None)  # Depends on task_mode
+    mlp_only_train: Optional[bool] = field(default=None)  # Depends on task_mode
 
-    def is_mode_unsup(self):
-        return self.training_mode == TrainingArguments.MODE_UNSUP
+    def is_mode_no_train(self):
+        return self.task_mode == self.MODE_KOR_MBERT or self.task_mode == self.MODE_KOR_KOBERT
 
-    def is_mode_sup(self):
-        return self.training_mode == TrainingArguments.MODE_SUP_HARD_NEG
+    def is_mbert_base(self):
+        return self.MODE_KOR_MBERT in self.task_mode
 
-    def is_mode_mbert(self):
-        return self.training_mode == TrainingArguments.MODE_MBERT
-
-    def is_mode_exist(self):
-        return self.training_mode in TrainingArguments.MODE_ALL
+    def is_kobert_base(self):
+        return self.MODE_KOR_KOBERT in self.task_mode
 
     def __post_init__(self):
         super().__post_init__()
 
-        if self.pooler_type not in POOLER_TYPE_ALL:
-            raise ValueError(f'{self.pooler_type} is not a valid pooler type. Valid types are {POOLER_TYPE_ALL}.')
+        # Set values by task_mode --
 
-        if not self.is_mode_exist():
+        if self.task_mode not in TrainingArguments.MODE_ALL:
             raise ValueError(
-                f'{self.training_mode} is not a valid training_mode. Valid modes are {self.MODE_ALL}.'
+                f'{self.task_mode} is not a valid training_mode. Valid modes are {self.MODE_ALL}.'
             )
 
-        elif self.is_mode_sup():
-            if self.pooler_type != POOLER_TYPE_CLS:
-                raise ValueError(
-                    f'{self.pooler_type} is not a valid pooler type for supervised training. '
-                    f'Valid type should be {POOLER_TYPE_CLS}.'
-                )
+        elif self.task_mode == TrainingArguments.MODE_KOR_MBERT:
+            self.model_name_or_path = 'bert-base-multilingual-uncased'
+            self.pooler_type = POOLER_TYPE_CLS
 
-            if self.train_file in 'snli_1.0_train' and self.eval_file in 'sts-dev':
-                raise ValueError(
-                    'train_file and eval_file must be snli_1.0_train and sts-dev when training_mode is MODE_SUP'
-                )
+            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
+            self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
-        elif self.is_mode_unsup():
-            if self.pooler_type != POOLER_TYPE_CLS or self.mlp_only_train is True:
-                raise ValueError(
-                    f'{self.pooler_type} is not a valid pooler type for unsupervised training. '
-                    f'Valid type should be {POOLER_TYPE_CLS}.'
-                )
+        elif (
+                self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
+                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE
+        ):
+            self.model_name_or_path = 'bert-base-multilingual-uncased'
+            self.pooler_type = POOLER_TYPE_CLS
 
-            # TODO We need korean mal-mung-chi as self.train_file
-            # TODO eval_file is still 'self.eval_file in 'sts-dev'
+            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
+            self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
-        elif self.is_mode_mbert():
-            if 'bert-base-multilingual' not in self.model_name_or_path:
-                raise ValueError(
-                    f'{self.model_name_or_path} is not a valid model name for training_mode {self.training_mode}'
-                )
+            self.mlp_only_train = False
+            self.train_file = (
+                './data/kor/KorNLI/snli_1.0_train.ko.tsv' if self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
+                else './data/kor/KorNLI/snli_1.0_train_sample.ko.tsv'
+            )
+
+        elif (
+                self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
+                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP_SAMPLE
+        ):
+            self.model_name_or_path = 'bert-base-multilingual-uncased'
+            self.pooler_type = POOLER_TYPE_CLS
+
+            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
+            self.test_file = './data/kor/KorSTS/sts-test.tsv'
+
+            self.mlp_only_train = True
+            self.train_file = (
+                './data/kor/korean_news_data.txt' if self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
+                else './data/kor/korean_news_data.sample.txt'
+            )
+
+        elif self.task_mode == TrainingArguments.MODE_KOR_KOBERT:
+            self.model_name_or_path = 'skt/kobert-base-v1'
+            self.pooler_type = POOLER_TYPE_CLS
+
+            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
+            self.test_file = './data/kor/KorSTS/sts-test.tsv'
+
+        elif (
+                self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
+                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE
+        ):
+            self.model_name_or_path = 'skt/kobert-base-v1'
+            self.pooler_type = POOLER_TYPE_CLS
+
+            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
+            self.test_file = './data/kor/KorSTS/sts-test.tsv'
+
+            self.mlp_only_train = True
+            self.train_file = (
+                './data/kor/korean_news_data.txt' if self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
+                else './data/kor/korean_news_data.sample.txt'
+            )
+
+        # Check essential values --
+
+        if self.pooler_type not in POOLER_TYPE_ALL:
+            raise ValueError(f'{self.pooler_type} is not a valid pooler type. Valid types are {POOLER_TYPE_ALL}.')
 
 
 if __name__ == '__main__':

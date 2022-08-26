@@ -4,7 +4,7 @@ from typing import List, Optional, Dict
 import numpy as np
 import torch
 from scipy.stats import spearmanr, pearsonr
-from simcse_kor.models import Pooler
+from simcse_mul.models import Pooler
 from torch.utils.data import Dataset, DataLoader
 from transformers import Trainer
 
@@ -68,7 +68,7 @@ class CLTrainer(Trainer):
                 batch[k] = batch[k].to(self.args.device)
 
             with torch.no_grad():
-                if self.args.is_mode_mbert():
+                if self.args.is_mode_no_train():
                     outputs = model(**batch, output_hidden_states=True, return_dict=True)
 
                     pooler = Pooler(self.args.pooler_type)

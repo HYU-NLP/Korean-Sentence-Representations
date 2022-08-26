@@ -1,6 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-simcse_kor/__pycache__/
+simcse_mul/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -136,8 +136,9 @@ result
 # data
 nli_for_simcse.csv
 wiki1m_for_simcse.txt
+korean_news_data.txt
+korean_news_data.zip
 
 # outdir
 /runs
 /output_dir
-data/korean_news_data.txt
