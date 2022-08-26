@@ -94,6 +94,8 @@ Sup-SimCSE-m-bert
 | Sup-SG-M-BERT     | snli_1.0_train.ko.tsv | 1e-05 | 0.7105      | 0.6265       |
 | "                 | "                     | 3e-05 | 0.7204      | 0.6321       |
 | "                 | "                     | 5e-05 | 0.7129      | 0.6267       |
+| SG-KoBERT         | "                     | 5e-05 | 0.6670      | 0.5529       |
+| "                 | korean_news_data.txt  | 5e-05 | 0.5856      | 0.4655       |
 
 Sup-SG-M-BERT
 
@@ -107,3 +109,9 @@ Sup-SG-M-BERT
     * per_device_train_batch_size: 16
     * _n_gpu: 1
     * seed: 42
+
+SG-BERT
+
+* Used KoBERT based model (m-bert: skt/kobert-based-v1)
+* Trained with snli_1.0_train.ko.tsv and korean_news_data.txt
+* Others are same as Sup-SG-M-BERT
