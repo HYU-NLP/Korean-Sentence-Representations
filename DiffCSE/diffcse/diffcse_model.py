@@ -2,12 +2,9 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributed as dist
 
 import transformers
-from transformers import RobertaTokenizer
-from transformers.models.roberta.modeling_roberta import RobertaPreTrainedModel, RobertaModel, RobertaLMHead
-from transformers.models.bert.modeling_bert import BertPreTrainedModel, BertModel, BertLMPredictionHead
+from transformers.models.bert.modeling_bert import BertPreTrainedModel, BertModel
 from transformers.activations import gelu
 from transformers.file_utils import (
     add_code_sample_docstrings,
@@ -16,7 +13,7 @@ from transformers.file_utils import (
     replace_return_docstrings,
 )
 from transformers.modeling_outputs import SequenceClassifierOutput, BaseModelOutputWithPoolingAndCrossAttentions
-
+from transformers import AutoModel
 class ProjectionMLP(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -98,14 +95,14 @@ def cl_forward(cls,
         output_attentions=output_attentions,
         output_hidden_states=False,
         return_dict=True,
-    )
+    ) # outputs = (bsz * num_sent, seq_len, dim)
     # Pooling
-    pooler_output = cls.pooler(attention_mask, outputs) # (bsz, dim)
-    pooler_output = pooler_output.view((batch_size, num_sent, pooler_output.size(-1)))
+    pooler_output = cls.pooler(attention_mask, outputs) # (bsz * 2 , dim)
+    pooler_output = pooler_output.view((batch_size, num_sent, pooler_output.size(-1))) # (bsz, 2, dim)
     ## add an extra MLP layer
-    pooler_output = pooler_output.view((batch_size*num_sent, pooler_output.size(-1))) # (bs, num_sent, hidden)
-    pooler_output = cls.mlp(pooler_output)
-    pooler_output = pooler_output.view((batch_size, num_sent, pooler_output.size(-1))) # (bs, num_sent, hidden)
+    pooler_output = pooler_output.view((batch_size*num_sent, pooler_output.size(-1))) # (bsz, num_sent, dim)
+    pooler_output = cls.mlp(pooler_output) # (bs, num_sent, hidden)
+    pooler_output = pooler_output.view((batch_size, num_sent, pooler_output.size(-1))) # (bsz, num_sent, dim)
 
 
     ## Produce MLM augmentations and perform conditional ELECTRA using the discriminator
@@ -115,7 +112,7 @@ def cl_forward(cls,
             g_pred = cls.generator(mlm_input_ids, attention_mask)[0].argmax(-1)
         g_pred[:, 0] = cls_token
         replaced = (g_pred != input_ids) * attention_mask
-        e_inputs = g_pred * attention_mask
+        e_inputs = g_pred * attention_mask  # (bsz * 2, seq_len)
         mlm_outputs = cls.discriminator(
             e_inputs,
             attention_mask=attention_mask,
@@ -126,7 +123,7 @@ def cl_forward(cls,
             output_attentions=output_attentions,
             output_hidden_states=False, # because we use [CLS]
             return_dict=True,
-            cls_input=pooler_output.view((-1, pooler_output.size(-1))),
+            cls_input=pooler_output.view((-1, pooler_output.size(-1))),  # (bsz * 2, dim)
         )
 
     # Separate representation
@@ -208,20 +205,17 @@ class BertForDiffCSE(BertPreTrainedModel) :
         super().__init__(config)
 
         self.model_args = model_kargs["model_args"]
-        self.bert = BertModel(config, add_pooling_layer=False)
-        
-        # bert 를 복사해서 그냥 하면 안되나??
-        ##### modified #####
-        self.discriminator = copy.deepcopy(self.bert)
-        self.electra_head = torch.nn.Linear(768, 2)
-        ##### modified #####
+        self.bert = BertModel(config, add_pooling_layer = False)
 
         self.pooler = Pooler()
         self.mlp = ProjectionMLP(config)
-
         self.sim = Similarity(temp=self.model_args.temp)
-
         self.init_weights() # new version 에서는 post_init
+
+        ##### modified #####
+        self.discriminator = AutoModel.from_pretrained(self.model_args.model_name_or_path, config=config, add_pooling_layer = False)
+        self.electra_head = torch.nn.Linear(768, 2)
+        ##### modified #####
         self.generator = transformers.DistilBertForMaskedLM.from_pretrained('distilbert-base-uncased') if self.model_args.generator_name is None else transformers.AutoModelForMaskedLM.from_pretrained(self.model_args.generator_name)
         
     def forward(self, input_ids=None, 
