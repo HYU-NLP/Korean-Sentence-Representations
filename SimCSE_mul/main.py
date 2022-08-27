@@ -9,7 +9,6 @@ import torch
 import transformers
 from datasets import load_dataset
 from kobert_tokenizer import KoBERTTokenizer
-from tqdm.contrib.logging import logging_redirect_tqdm
 from transformers import (
     HfArgumentParser,
     TrainingArguments,
@@ -52,7 +51,7 @@ def main():
     set_seed(training_args.seed)
 
     # Prepare tokenizer, dataset (+ dataloader), model, loss function, optimizer, etc --
-    if training_args.is_mbert_base():
+    if training_args.is_mbert_or_eng_base():
         tokenizer = BertTokenizer.from_pretrained(training_args.model_name_or_path)
     elif training_args.is_kobert_base():
         tokenizer = KoBERTTokenizer.from_pretrained(training_args.model_name_or_path)
@@ -104,7 +103,8 @@ def main():
             raise NotImplementedError
 
         if (
-                training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
+                False
+                or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
                 or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE
         ):
             train_dataset = load_dataset(
@@ -158,24 +158,28 @@ def main():
 
                 return result
 
-            with logging_redirect_tqdm():
-                train_dataset = train_dataset.map(
-                    preprocess_train_function,
-                    batched=True,
-                    remove_columns=column_names,
-                )
+            train_dataset = train_dataset.map(
+                preprocess_train_function,
+                batched=True,
+                remove_columns=column_names,
+                load_from_cache_file=False,  # FIXME improve this
+            )
 
         elif (
-                training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
+                False
+                or training_args.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP
+                or training_args.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
+                or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
                 or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP_SAMPLE
                 or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
+                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
                 or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE
-                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN
+                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE
         ):
             train_dataset = load_dataset(
                 'text',
                 data_files={'train': training_args.train_file},
-                split='train'
+                split='train',
             )
 
             column_names = train_dataset.column_names
@@ -185,7 +189,12 @@ def main():
 
                 total = len(examples[column_name])  # Total len
 
-                if training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN:
+                if (
+                        False
+                        or training_args.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
+                        or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
+                        or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE
+                ):
                     copied_examples = copy.deepcopy(examples[column_name])
                     permuted_examples = []
                     for example in copied_examples:
@@ -210,6 +219,7 @@ def main():
                 preprocess_function,
                 batched=True,
                 remove_columns=column_names,
+                load_from_cache_file=False,  # FIXME improve this
             )
 
     # Custom Data collator, because of data repeating in preprocess_function
@@ -290,6 +300,10 @@ class TrainingArguments(transformers.TrainingArguments):
     Default arguments are assumed you are running Supervised SimCSE with korNLI with m-bert.
     """
 
+    MODE_ENG_BERT = 'en_bert'
+    MODE_ENG_BERT_UNSUP = MODE_ENG_BERT + '_unsup'
+    MODE_ENG_BERT_UNSUP_RAN = MODE_ENG_BERT + '_unsup_ran'
+
     MODE_KOR_MBERT = 'mbert'
     MODE_KOR_MBERT_UNSUP = MODE_KOR_MBERT + '_unsup'
     MODE_KOR_MBERT_UNSUP_SAMPLE = MODE_KOR_MBERT + '_unsup_sample'
@@ -298,10 +312,14 @@ class TrainingArguments(transformers.TrainingArguments):
 
     MODE_KOR_KOBERT = 'kobert'
     MODE_KOR_KOBERT_UNSUP = MODE_KOR_KOBERT + '_unsup'
+    MODE_KOR_KOBERT_UNSUP_RAN = MODE_KOR_KOBERT + '_unsup_ran'
     MODE_KOR_KOBERT_UNSUP_SAMPLE = MODE_KOR_KOBERT + '_unsup_sample'
-    MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN = MODE_KOR_KOBERT + '_unsup_sample_ran'
+    MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE = MODE_KOR_KOBERT + '_unsup_sample_ran'
 
     MODE_ALL = [
+        MODE_ENG_BERT_UNSUP,
+        MODE_ENG_BERT_UNSUP_RAN,
+
         MODE_KOR_MBERT,
         MODE_KOR_MBERT_UNSUP,
         MODE_KOR_MBERT_UNSUP_SAMPLE,
@@ -311,11 +329,14 @@ class TrainingArguments(transformers.TrainingArguments):
         MODE_KOR_KOBERT,
         MODE_KOR_KOBERT_UNSUP,
         MODE_KOR_KOBERT_UNSUP_SAMPLE,
-        MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN,
+        MODE_KOR_KOBERT_UNSUP_RAN,
+        MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE,
     ]
 
     STRATEGY = 'steps'
-    STRATEGY_STEPS = 250
+    STRATEGY_STEPS = 125
+
+    task_mode: str = field(default=MODE_ENG_BERT_UNSUP)
 
     # Trainer Arguments --
     output_dir: str = field(default='./output_dir')
@@ -325,25 +346,20 @@ class TrainingArguments(transformers.TrainingArguments):
     eval_steps: int = field(default=STRATEGY_STEPS)
     save_strategy: str = field(default=STRATEGY)
     save_steps: int = field(default=STRATEGY_STEPS)
-    save_total_limit: int = field(default=5)
+    save_total_limit: int = field(default=2)
     logging_strategy: str = field(default=STRATEGY)
     logging_steps: int = field(default=STRATEGY_STEPS)
     load_best_model_at_end: bool = field(default=True)
-    metric_for_best_model: str = field(default='kor_stsb_spearman')  # See CLTrainer
+    metric_for_best_model: str = field(default='stsb_spearman')  # See CLTrainer
     report_to: str = field(default='tensorboard')
 
     num_train_epochs: int = field(default=1)
-    max_steps: int = field(default=-1)
     per_device_train_batch_size: int = field(default=64)
     per_device_eval_batch_size: int = field(default=64)
 
-    learning_rate: float = field(default=3e-5)
-
-    fp16: bool = field(default=True)
+    learning_rate: float = field(default=1e-5)
 
     # Non-Trainer Arguments --
-    task_mode: str = field(default=MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN)
-
     model_name_or_path: str = field(default='')  # Depends on task_mode
     max_seq_length: int = field(default=32)
 
@@ -359,8 +375,8 @@ class TrainingArguments(transformers.TrainingArguments):
     def is_mode_no_train(self):
         return self.task_mode == self.MODE_KOR_MBERT or self.task_mode == self.MODE_KOR_KOBERT
 
-    def is_mbert_base(self):
-        return self.MODE_KOR_MBERT in self.task_mode
+    def is_mbert_or_eng_base(self):
+        return self.MODE_KOR_MBERT in self.task_mode or self.MODE_ENG_BERT in self.task_mode
 
     def is_kobert_base(self):
         return self.MODE_KOR_KOBERT in self.task_mode
@@ -375,6 +391,20 @@ class TrainingArguments(transformers.TrainingArguments):
                 f'{self.task_mode} is not a valid training_mode. Valid modes are {self.MODE_ALL}.'
             )
 
+        elif (
+                False
+                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP
+                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
+        ):
+            self.model_name_or_path = 'bert-base-uncased'
+            self.pooler_type = POOLER_TYPE_CLS
+
+            self.eval_file = './data/eng/sts-dev.csv'
+            self.test_file = './data/eng/sts-test.csv'
+
+            self.train_file = './data/eng/wiki1m_for_simcse.txt'
+            self.mlp_only_train = True
+
         elif self.task_mode == TrainingArguments.MODE_KOR_MBERT:
             self.model_name_or_path = 'bert-base-multilingual-uncased'
             self.pooler_type = POOLER_TYPE_CLS
@@ -383,7 +413,8 @@ class TrainingArguments(transformers.TrainingArguments):
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
         elif (
-                self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
+                False
+                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
                 or self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE
         ):
             self.model_name_or_path = 'bert-base-multilingual-uncased'
@@ -392,14 +423,15 @@ class TrainingArguments(transformers.TrainingArguments):
             self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
-            self.mlp_only_train = False
             self.train_file = (
                 './data/kor/KorNLI/snli_1.0_train.ko.tsv' if self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
                 else './data/kor/KorNLI/snli_1.0_train_sample.ko.tsv'
             )
+            self.mlp_only_train = False
 
         elif (
-                self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
+                False
+                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
                 or self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP_SAMPLE
         ):
             self.model_name_or_path = 'bert-base-multilingual-uncased'
@@ -408,11 +440,11 @@ class TrainingArguments(transformers.TrainingArguments):
             self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
-            self.mlp_only_train = True
             self.train_file = (
                 './data/kor/korean_news_data.txt' if self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
                 else './data/kor/korean_news_data.sample.txt'
             )
+            self.mlp_only_train = True
 
         elif self.task_mode == TrainingArguments.MODE_KOR_KOBERT:
             self.model_name_or_path = 'skt/kobert-base-v1'
@@ -422,9 +454,11 @@ class TrainingArguments(transformers.TrainingArguments):
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
         elif (
-                self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
+                False
+                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
                 or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE
-                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE_RAN
+                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
+                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE
         ):
             self.model_name_or_path = 'skt/kobert-base-v1'
             self.pooler_type = POOLER_TYPE_CLS
@@ -434,7 +468,8 @@ class TrainingArguments(transformers.TrainingArguments):
 
             self.mlp_only_train = True
             self.train_file = (
-                './data/kor/korean_news_data.txt' if self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
+                './data/kor/korean_news_data.txt' if (self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
+                                                      or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN)
                 else './data/kor/korean_news_data.sample.txt'
             )
 

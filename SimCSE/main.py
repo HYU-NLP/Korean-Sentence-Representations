@@ -13,7 +13,7 @@ from transformers import (
     BertTokenizer, BertConfig, PreTrainedTokenizerBase
 )
 
-from simcse.models import BertForCL, RobertaForCL, Pooler, POOLER_TYPE_CLS, POOLER_TYPE_ALL
+from simcse.models import BertForCL, RobertaForCL, POOLER_TYPE_CLS, POOLER_TYPE_ALL
 from simcse.trainers import CLTrainer
 
 logger = logging.getLogger(__name__)
@@ -74,10 +74,11 @@ def log_args(used_args, unused_args):
         logger.info(f'[List of unused arguments]: {unused_args}')
 
 
-def main(default_params):
+def main():
     # Parser --
+    logger_init()
     parser = HfArgumentParser(TrainingArguments)
-    training_args, unused_args = parser.parse_args_into_dataclasses(default_params, return_remaining_strings=True)
+    training_args, unused_args = parser.parse_args_into_dataclasses(return_remaining_strings=True)
     log_args(training_args, unused_args)
 
     # Seed --
@@ -86,7 +87,7 @@ def main(default_params):
     # Prepare tokenizer, dataset (+ dataloader), model, loss function, optimizer, etc --
     tokenizer = BertTokenizer.from_pretrained(training_args.model_name_or_path)
 
-    if training_args.training_mode == MODE_UNSUP:
+    if training_args.task_mode == MODE_UNSUP:
         datasets = load_dataset('text', data_files={'train': training_args.train_file})
         column_names = datasets['train'].column_names
 
@@ -110,7 +111,7 @@ def main(default_params):
             remove_columns=column_names,
         )
 
-    elif training_args.training_mode == MODE_SUP_HARD_NEG:
+    elif training_args.task_mode == MODE_SUP_HARD_NEG:
         datasets = load_dataset('csv', data_files={'train': training_args.train_file}, delimiter=',')
         column_names = datasets['train'].column_names
 
@@ -223,71 +224,62 @@ def main(default_params):
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
+    STRATEGY = 'steps'
+    STRATEGY_STEPS = 250
+
+    task_mode: str = field(default=MODE_UNSUP)
+
+    # Trainer Arguments --
+    output_dir: str = field(default='./output_dir')
+    overwrite_output_dir: bool = field(default=True)
+
+    evaluation_strategy: str = field(default=STRATEGY)
+    eval_steps: int = field(default=STRATEGY_STEPS)
+    save_strategy: str = field(default=STRATEGY)
+    save_steps: int = field(default=STRATEGY_STEPS)
+    save_total_limit: int = field(default=2)
+    logging_strategy: str = field(default=STRATEGY)
+    logging_steps: int = field(default=STRATEGY_STEPS)
+    load_best_model_at_end: bool = field(default=True)
+    metric_for_best_model: str = field(default='stsb_spearman')
+    report_to: str = field(default='tensorboard')
+
+    num_train_epochs: int = field(default=1)
+    per_device_train_batch_size: int = field(default=64)
+    per_device_eval_batch_size: int = field(default=64)
+
+    learning_rate: float = field(default=1e-5)
+
+    # Non-Trainer Arguments --
     model_name_or_path: str = field(default='bert-base-uncased')
     max_seq_length: int = field(default=32)
+
+    train_file: str = field(default='')  # Depend on simcse_mode
+    pooler_type: str = field(default='')  # Depend on simcse_mode
+    mlp_only_train: Optional[bool] = field(default=None)  # Depend on simcse_mode
 
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
 
-    simcse_mode: str = field(default=MODE_SUP_HARD_NEG)
-    train_file: str = field(default='./data/nli_for_simcse.csv')
-    pooler_type: str = field(default=POOLER_TYPE_CLS)  # Depend on simcse_mode
-    mlp_only_train: bool = field(default=False)  # Depend on simcse_mode
-
-    disable_gradient_clipping: bool = field(default=False)
-
     def __post_init__(self):
         super().__post_init__()
+
+        if self.task_mode not in MODE_ALL:
+            raise ValueError(f'{self.task_mode} is not a valid simcse mode. Valid modes are {MODE_ALL}.')
+
+        if self.task_mode == MODE_UNSUP:
+            self.train_file = './data/wiki1m_for_simcse.txt'
+            self.pooler_type = POOLER_TYPE_CLS
+            self.mlp_only_train = True
+
+        elif self.task_mode == MODE_SUP_HARD_NEG:
+            self.train_file = './data/nli_for_simcse.csv'
+            self.pooler_type = POOLER_TYPE_CLS
+            self.mlp_only_train = False
 
         if self.pooler_type not in POOLER_TYPE_ALL:
             raise ValueError(f'{self.pooler_type} is not a valid pooler type. Valid types are {POOLER_TYPE_ALL}.')
 
-        if self.simcse_mode not in MODE_ALL:
-            raise ValueError(f'{self.simcse_mode} is not a valid simcse mode. Valid modes are {MODE_ALL}.')
-
-        # Comment rules if you want to do differently from paper
-        if self.simcse_mode == MODE_UNSUP:
-            if self.pooler_type != POOLER_TYPE_CLS or not self.mlp_only_train:
-                raise ValueError(
-                    f'{self.pooler_type} should be {POOLER_TYPE_CLS} and {self.mlp_only_train} should be True for {self.simcse_mode}.'
-                )
-
-            if self.train_file != './data/wiki1m_for_simcse.txt':
-                raise ValueError('train_file must be ./data/wiki1m_for_simcse.txt when simcse_mode is MODE_UNSUP')
-
-        elif self.simcse_mode == MODE_SUP_HARD_NEG:
-            if self.pooler_type != POOLER_TYPE_CLS:
-                raise ValueError('pooler_type must be POOLER_TYPE_CLS when simcse_mode is MODE_SUP')
-
-            if self.train_file != './data/nli_for_simcse.csv':
-                raise ValueError('train_file must be ./data/nli_for_simcse.csv when simcse_mode is MODE_SUP')
-
 
 if __name__ == '__main__':
-    logger_init()
-
-    # Default params for TrainingArguments, can still be overridden by command-line
-    fake_argv = [
-        '--output_dir', './output_dir',
-        '--overwrite_output_dir', 'True',
-
-        '--evaluation_strategy', 'steps',
-        '--eval_steps', '250',
-        '--save_strategy', 'steps',
-        '--save_steps', '250',
-        '--logging_strategy', 'steps',
-        '--logging_steps', '250',
-        '--load_best_model_at_end', 'True',
-        '--report_to', 'tensorboard',
-
-        '--num_train_epochs', '1',
-        '--per_device_train_batch_size', '64',
-
-        '--learning_rate', '1e-5',
-
-        '--metric_for_best_model', 'stsb_spearman',
-    ]
-
-    fake_argv.extend(sys.argv[1:])
-
-    main(fake_argv)
+    main()
