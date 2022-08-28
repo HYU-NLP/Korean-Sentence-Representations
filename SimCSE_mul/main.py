@@ -361,7 +361,8 @@ class TrainingArguments(transformers.TrainingArguments):
                 or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
                 or self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
                 or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN)
+                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
+                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP)
 
     def is_mode_ran(self):
         return (False
