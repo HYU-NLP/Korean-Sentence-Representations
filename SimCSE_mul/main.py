@@ -107,6 +107,9 @@ def main():
                 split='train',
             )
 
+            if training_args.shuffle_dataset != -1:
+                train_dataset.shuffle(seed=training_args.shuffle_dataset)
+
             column_names = train_dataset.column_names
 
             def preprocess_function(examples):
@@ -162,6 +165,9 @@ def main():
                 data_files={'train': training_args.train_file},
                 split='train',
             )
+
+            if training_args.shuffle_dataset != -1:
+                train_dataset.shuffle(seed=training_args.shuffle_dataset)
 
             column_names = train_dataset.column_names
 
@@ -351,6 +357,8 @@ class TrainingArguments(transformers.TrainingArguments):
     test_file: str = field(default='')  # Depends on task_mode
     pooler_type: str = field(default=None)  # Depends on task_mode
     mlp_only_train: Optional[bool] = field(default=None)  # Depends on task_mode
+
+    shuffle_dataset: int = field(default=-1)
 
     def is_mode_sup(self):
         return self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG

@@ -71,7 +71,6 @@ Below is important parameters of re-imple:
 * `korean_news_data.sample.txt` is a sample of `korean_news_data.txt`, created as `$ head -50000 korean_news_data.txt > korean_news_data.sample.txt`.
 * `korean_news_data_1m.txt` is a sample of `korean_news_data.txt`, created as `$ head -1000000 korean_news_data.txt > korean_news_data_1m.txt`.
 
-
 #### Result
 
 | **Model**                | Trained with                  | lr      | STS-B (dev)   | STS-B (test)   | (uniform_loss, align_loss)   |
@@ -93,21 +92,35 @@ Below is important parameters of re-imple:
 | " (w/ random-permute)    | "                             | 3e-05   | 0.7383        | 0.6550         | (-1.9860, 0.2874)            |
 | " (w/ random-permute)    | "                             | 5e-05   | 0.7471        | 0.6520         | (-2.0237, 0.2757)            |
 | ------------------------ | ----------------------------- | ------- | ------------- | -------------- | ---------------------------- |
-| "                        | korean_news_data.txt          | 1e-05   | 0.6911        | ?              | ?                            |
-| "                        | "                             | 3e-05   | 0.6924        | ?              | ?                            |
-| "                        | "                             | 5e-05   | 0.6802        | ?              | ?                            |
-| " (w/ random-permute)    | "                             | 1e-05   | 0.7789        | ?              | ?                            |
-| " (w/ random-permute)    | "                             | 3e-05   | 0.7530        | ?              | ?                            |
-| " (w/ random-permute)    | "                             | 5e-05   | 0.7225        | ?              | ?                            |
+| "                        | korean_news_data_1m.txt       | 1e-05   | 0.7143        | 0.6453         | ?                            |
+| "                        | "                             | 3e-05   | 0.6820        | 0.6165         | ?                            |
+| "                        | "                             | 5e-05   | 0.6813        | 0.6286         | ?                            |
+| "                        | "                             | 7e-05   | 0.6894        | 0.6207         | ?                            |
+| " (w/ random-permute)    | "                             | 1e-05   | ?             | ?              | ?                            |
+| " (w/ random-permute)    | "                             | 3e-05   | ?             | ?              | ?                            |
+| " (w/ random-permute)    | "                             | 5e-05   | ?             | ?              | ?                            |
+| " (w/ random-permute)    | "                             | 7e-05   | ?             | ?              | ?                            |
 
 * Below is common parameters for above experiments:
-  * max_seq_length: 32
-  * per_device_train_batch_size: 64
-  * _n_gpu: 1
-  * seed: 42
+    * max_seq_length: 32
+    * per_device_train_batch_size: 64
+    * _n_gpu: 1
+    * seed: 42
 
+| **Model**            | Trained with            | lr    | STS-B (dev) | STS-B (test) | (uniform_loss, align_loss) |
+|----------------------|-------------------------|-------|-------------|--------------|----------------------------|
+| Unsup-SimCSE-kr-bert | korean_news_data_1m.txt | 3e-05 | 0.7529      | 0.6822       |                            |
+| "                    | "                       | 5e-05 | 0.6893      | 0.6222       |                            |
+| "                    | "                       | 7e-05 | 0.7010      | 0.6215       |                            |
+| "                    | "                       | 9e-05 | 0.6994      | 0.6164       |                            |
 
-# SG-BERT_kor 
+* Below is common parameters for above experiments:
+    * max_seq_length: 64
+    * per_device_train_batch_size: 128
+    * _n_gpu: 1
+    * seed: 42
+
+# SG-BERT_kor
 
 #### Result
 
