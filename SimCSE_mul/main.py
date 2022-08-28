@@ -89,7 +89,7 @@ def main():
 
             model = RobertaForCL.from_pretrained(training_args.model_name_or_path, config=config)
 
-        elif 'bert' in training_args.model_name_or_path:
+        else:
             # Work around when "loading best model" on transformers package 4.2.1 version
             BertForCL.temperature = training_args.temperature
             BertForCL.hard_negative_weight = training_args.hard_negative_weight
@@ -97,8 +97,6 @@ def main():
             BertForCL.mlp_only_train = training_args.mlp_only_train
 
             model = BertForCL.from_pretrained(training_args.model_name_or_path, config=config)
-        else:
-            raise NotImplementedError
 
         if (
                 False
