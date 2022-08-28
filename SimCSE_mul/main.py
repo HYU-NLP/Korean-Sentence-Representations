@@ -307,15 +307,11 @@ class TrainingArguments(transformers.TrainingArguments):
 
     MODE_KOR_MBERT = 'mbert'
     MODE_KOR_MBERT_UNSUP = MODE_KOR_MBERT + '_unsup'
-    MODE_KOR_MBERT_UNSUP_SAMPLE = MODE_KOR_MBERT + '_unsup_sample'
     MODE_KOR_MBERT_SUP_HARD_NEG = MODE_KOR_MBERT + '_sup',
-    MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE = MODE_KOR_MBERT + '_sup_sample',
 
     MODE_KOR_KOBERT = 'kobert'
     MODE_KOR_KOBERT_UNSUP = MODE_KOR_KOBERT + '_unsup'
     MODE_KOR_KOBERT_UNSUP_RAN = MODE_KOR_KOBERT + '_unsup_ran'
-    MODE_KOR_KOBERT_UNSUP_SAMPLE = MODE_KOR_KOBERT + '_unsup_sample'
-    MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE = MODE_KOR_KOBERT + '_unsup_sample_ran'
 
     MODE_KOR_KRBERT = 'krbert'
     MODE_KOR_KRBERT_UNSUP = MODE_KOR_KRBERT + '_unsup'
@@ -326,15 +322,11 @@ class TrainingArguments(transformers.TrainingArguments):
 
         MODE_KOR_MBERT,
         MODE_KOR_MBERT_UNSUP,
-        MODE_KOR_MBERT_UNSUP_SAMPLE,
         MODE_KOR_MBERT_SUP_HARD_NEG,
-        MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE,
 
         MODE_KOR_KOBERT,
         MODE_KOR_KOBERT_UNSUP,
-        MODE_KOR_KOBERT_UNSUP_SAMPLE,
         MODE_KOR_KOBERT_UNSUP_RAN,
-        MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE,
 
         MODE_KOR_KRBERT,
         MODE_KOR_KRBERT_UNSUP,
@@ -416,38 +408,24 @@ class TrainingArguments(transformers.TrainingArguments):
             self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
-        elif (
-                False
-                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
-                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE
-        ):
+        elif self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG:
             self.model_name_or_path = 'bert-base-multilingual-uncased'
             self.pooler_type = POOLER_TYPE_CLS
 
             self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
-            self.train_file = (
-                './data/kor/KorNLI/snli_1.0_train.ko.tsv' if self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
-                else './data/kor/KorNLI/snli_1.0_train_sample.ko.tsv'
-            )
+            self.train_file = './data/kor/KorNLI/snli_1.0_train.ko.tsv'
             self.mlp_only_train = False
 
-        elif (
-                False
-                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP_SAMPLE
-        ):
+        elif self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP:
             self.model_name_or_path = 'bert-base-multilingual-uncased'
             self.pooler_type = POOLER_TYPE_CLS
 
             self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
-            self.train_file = (
-                './data/kor/korean_news_data_1m.txt' if self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
-                else './data/kor/korean_news_data.sample.txt'
-            )
+            self.train_file = './data/kor/korean_news_data_1m.txt'
             self.mlp_only_train = True
 
         elif self.task_mode == TrainingArguments.MODE_KOR_KOBERT:
@@ -460,9 +438,7 @@ class TrainingArguments(transformers.TrainingArguments):
         elif (
                 False
                 or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE
                 or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
-                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE
         ):
             self.model_name_or_path = 'skt/kobert-base-v1'
             self.pooler_type = POOLER_TYPE_CLS
@@ -471,16 +447,9 @@ class TrainingArguments(transformers.TrainingArguments):
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
             self.mlp_only_train = True
-            self.train_file = (
-                './data/kor/korean_news_data_1m.txt' if (self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
-                                                         or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN)
-                else './data/kor/korean_news_data.sample.txt'
-            )
+            self.train_file = './data/kor/korean_news_data_1m.txt'
 
-        elif (
-                False
-                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP
-        ):
+        elif self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP:
             self.model_name_or_path = 'snunlp/KR-BERT-char16424'
             self.pooler_type = POOLER_TYPE_CLS
 
@@ -488,11 +457,7 @@ class TrainingArguments(transformers.TrainingArguments):
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
             self.mlp_only_train = True
-            self.train_file = (
-                './data/kor/korean_news_data_1m.txt' if (self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
-                                                         or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN)
-                else './data/kor/korean_news_data.sample.txt'
-            )
+            self.train_file = './data/kor/korean_news_data_1m.txt'
 
         # Check essential values --
 
