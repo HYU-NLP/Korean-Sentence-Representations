@@ -106,16 +106,6 @@ Below is important parameters of re-imple:
   * _n_gpu: 1
   * seed: 42
 
-| **Model**            | Trained with            | lr  | STS-B (dev) | STS-B (test) | (uniform_loss, align_loss) |
-|----------------------|-------------------------|-----|-------------|--------------|----------------------------|
-| Unsup-SimCSE-ko-bert | korean_news_data_1m.txt | ?   | ?           | ?            | ?                          |
-
-* Below is common parameters for above experiments:
-  * max_seq_length: 32
-  * per_device_train_batch_size: 128
-  * _n_gpu: 1
-  * seed: 42
-
 
 # SG-BERT_kor 
 

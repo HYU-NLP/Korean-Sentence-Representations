@@ -98,11 +98,7 @@ def main():
 
             model = BertForCL.from_pretrained(training_args.model_name_or_path, config=config)
 
-        if (
-                False
-                or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
-                or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG_SAMPLE
-        ):
+        if training_args.is_mode_sup():
             train_dataset = load_dataset(
                 'csv',
                 data_files={'train': training_args.train_file},
@@ -160,17 +156,7 @@ def main():
                 remove_columns=column_names,
             )
 
-        elif (
-                False
-                or training_args.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP
-                or training_args.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
-                or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
-                or training_args.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP_SAMPLE
-                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
-                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
-                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_SAMPLE
-                or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE
-        ):
+        elif training_args.is_mode_unsup():
             train_dataset = load_dataset(
                 'text',
                 data_files={'train': training_args.train_file},
@@ -205,12 +191,7 @@ def main():
 
                 return result
 
-            if (
-                    False
-                    or training_args.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
-                    or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
-                    or training_args.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN_SAMPLE
-            ):
+            if training_args.is_mode_ran():
                 train_dataset = train_dataset.map(
                     lambda example: preprocess_function(example, True),
                     batched=True,
@@ -370,6 +351,22 @@ class TrainingArguments(transformers.TrainingArguments):
     test_file: str = field(default='')  # Depends on task_mode
     pooler_type: str = field(default=None)  # Depends on task_mode
     mlp_only_train: Optional[bool] = field(default=None)  # Depends on task_mode
+
+    def is_mode_sup(self):
+        return self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
+
+    def is_mode_unsup(self):
+        return (False
+                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP
+                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
+                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
+                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
+                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN)
+
+    def is_mode_ran(self):
+        return (False
+                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
+                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN)
 
     def is_mode_no_train(self):
         return self.task_mode == self.MODE_KOR_MBERT or self.task_mode == self.MODE_KOR_KOBERT
