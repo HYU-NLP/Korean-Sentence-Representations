@@ -352,7 +352,7 @@ class TrainingArguments(transformers.TrainingArguments):
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
 
-    train_file: str = field(default='')  # Depends on task_mode
+    train_file: str = field(default='')  # Must put
     eval_file: str = field(default='')  # Depends on task_mode
     test_file: str = field(default='')  # Depends on task_mode
     pooler_type: str = field(default=None)  # Depends on task_mode
@@ -404,7 +404,6 @@ class TrainingArguments(transformers.TrainingArguments):
             self.eval_file = './data/eng/sts-dev.csv'
             self.test_file = './data/eng/sts-test.csv'
 
-            self.train_file = './data/eng/wiki1m_for_simcse.txt'
             self.mlp_only_train = True
 
         elif self.task_mode == TrainingArguments.MODE_KOR_MBERT:
@@ -421,7 +420,6 @@ class TrainingArguments(transformers.TrainingArguments):
             self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
-            self.train_file = './data/kor/KorNLI/snli_1.0_train.ko.tsv'
             self.mlp_only_train = False
 
         elif self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP:
@@ -431,7 +429,6 @@ class TrainingArguments(transformers.TrainingArguments):
             self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
-            self.train_file = './data/kor/korean_news_data_1m.txt'
             self.mlp_only_train = True
 
         elif self.task_mode == TrainingArguments.MODE_KOR_KOBERT:
@@ -453,7 +450,6 @@ class TrainingArguments(transformers.TrainingArguments):
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
             self.mlp_only_train = True
-            self.train_file = './data/kor/korean_news_data_1m.txt'
 
         elif self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP:
             self.model_name_or_path = 'snunlp/KR-BERT-char16424'
@@ -463,7 +459,6 @@ class TrainingArguments(transformers.TrainingArguments):
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
 
             self.mlp_only_train = True
-            self.train_file = './data/kor/korean_news_data_1m.txt'
 
         # Check essential values --
 
