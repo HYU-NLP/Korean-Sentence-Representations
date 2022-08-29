@@ -293,7 +293,7 @@ class TrainingArguments(transformers.TrainingArguments):
 
     MODE_KOR_MBERT = 'mbert'
     MODE_KOR_MBERT_UNSUP = MODE_KOR_MBERT + '_unsup'
-    MODE_KOR_MBERT_SUP_HARD_NEG = MODE_KOR_MBERT + '_sup',
+    MODE_KOR_MBERT_SUP_HARD_NEG = MODE_KOR_MBERT + '_sup'
 
     MODE_KOR_KOBERT = 'kobert'
     MODE_KOR_KOBERT_UNSUP = MODE_KOR_KOBERT + '_unsup'
@@ -301,6 +301,7 @@ class TrainingArguments(transformers.TrainingArguments):
 
     MODE_KOR_KRBERT = 'krbert'
     MODE_KOR_KRBERT_UNSUP = MODE_KOR_KRBERT + '_unsup'
+    MODE_KOR_KRBERT_UNSUP_RAN = MODE_KOR_KRBERT + '_unsup_ran'
 
     MODE_ALL = [
         MODE_ENG_BERT_UNSUP,
@@ -316,6 +317,7 @@ class TrainingArguments(transformers.TrainingArguments):
 
         MODE_KOR_KRBERT,
         MODE_KOR_KRBERT_UNSUP,
+        MODE_KOR_KRBERT_UNSUP_RAN,
     ]
 
     STRATEGY = 'steps'
@@ -369,12 +371,16 @@ class TrainingArguments(transformers.TrainingArguments):
                 or self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
                 or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
                 or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
-                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP)
+                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP
+                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_RAN
+                )
 
     def is_mode_ran(self):
         return (False
                 or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
-                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN)
+                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
+                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_RAN
+                )
 
     def is_mode_no_train(self):
         return self.task_mode == self.MODE_KOR_MBERT or self.task_mode == self.MODE_KOR_KOBERT
@@ -450,7 +456,11 @@ class TrainingArguments(transformers.TrainingArguments):
 
             self.mlp_only_train = True
 
-        elif self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP:
+        elif (
+                False
+                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP
+                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_RAN
+        ):
             self.model_name_or_path = 'snunlp/KR-BERT-char16424'
             self.pooler_type = POOLER_TYPE_CLS
 
