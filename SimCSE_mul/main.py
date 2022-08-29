@@ -167,7 +167,7 @@ def main():
             )
 
             if training_args.shuffle_dataset != -1:
-                train_dataset.shuffle(seed=training_args.shuffle_dataset)
+                train_dataset = train_dataset.shuffle(seed=training_args.shuffle_dataset)
 
             column_names = train_dataset.column_names
 
