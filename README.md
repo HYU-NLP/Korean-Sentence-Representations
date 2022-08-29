@@ -93,10 +93,10 @@ Below is important parameters of re-imple:
 | " (w/ random-permute)    | "                             | 3e-05   | 0.7383        | 0.6550         | (-1.9860, 0.2874)            |
 | " (w/ random-permute)    | "                             | 5e-05   | 0.7471        | 0.6520         | (-2.0237, 0.2757)            |
 | ------------------------ | ----------------------------- | ------- | ------------- | -------------- | ---------------------------- |
-| "                        | korean_news_data_1m.txt       | 1e-05   | 0.7143        | 0.6453         | ?                            |
-| "                        | "                             | 3e-05   | 0.6820        | 0.6165         | ?                            |
-| "                        | "                             | 5e-05   | 0.6813        | 0.6286         | ?                            |
-| "                        | "                             | 7e-05   | 0.6894        | 0.6207         | ?                            |
+| "                        | korean_news_data_1m.txt       | 1e-05   | ?             | ?              | ?                            |
+| "                        | "                             | 3e-05   | ?             | ?              | ?                            |
+| "                        | "                             | 5e-05   | ?             | ?              | ?                            |
+| "                        | "                             | 7e-05   | ?             | ?              | ?                            |
 | " (w/ random-permute)    | "                             | 1e-05   | ?             | ?              | ?                            |
 | " (w/ random-permute)    | "                             | 3e-05   | ?             | ?              | ?                            |
 | " (w/ random-permute)    | "                             | 5e-05   | ?             | ?              | ?                            |
@@ -110,10 +110,10 @@ Below is important parameters of re-imple:
 
 | **Model**            | Trained with            | lr    | STS-B (dev) | STS-B (test) | (uniform_loss, align_loss) |
 |----------------------|-------------------------|-------|-------------|--------------|----------------------------|
-| Unsup-SimCSE-kr-bert | korean_news_data_1m.txt | 3e-05 | 0.7529      | 0.6822       |                            |
-| "                    | "                       | 5e-05 | 0.6893      | 0.6222       |                            |
-| "                    | "                       | 7e-05 | 0.7010      | 0.6215       |                            |
-| "                    | "                       | 9e-05 | 0.6994      | 0.6164       |                            |
+| Unsup-SimCSE-kr-bert | korean_news_data_1m.txt | 3e-05 | ?           | ?            |                            |
+| "                    | "                       | 5e-05 | ?           | ?            |                            |
+| "                    | "                       | 7e-05 | ?           | ?            |                            |
+| "                    | "                       | 9e-05 | ?           | ?            |                            |
 
 * Below is common parameters for above experiments:
     * max_seq_length: 64

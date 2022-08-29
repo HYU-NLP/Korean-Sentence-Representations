@@ -173,7 +173,6 @@ def main():
 
             def preprocess_function(examples, do_permute):
                 column_name = column_names[0]  # The only column name in unsup dataset
-
                 total = len(examples[column_name])  # Total len
 
                 if do_permute:
@@ -198,17 +197,17 @@ def main():
                 return result
 
             if training_args.is_mode_ran():
-                train_dataset = train_dataset.map(
-                    lambda example: preprocess_function(example, True),
-                    batched=True,
-                    remove_columns=column_names,
-                )
+                do_permute = True
             else:
-                train_dataset = train_dataset.map(
-                    lambda example: preprocess_function(example, False),
-                    batched=True,
-                    remove_columns=column_names,
-                )
+                do_permute = False
+
+            train_dataset = train_dataset.map(
+                preprocess_function,
+                batched=True,
+                remove_columns=column_names,
+                fn_kwargs={'do_permute': do_permute},
+                load_from_cache_file=False,
+            )
 
     # Custom Data collator, because of data repeating in preprocess_function
     @dataclass
@@ -322,7 +321,7 @@ class TrainingArguments(transformers.TrainingArguments):
     STRATEGY = 'steps'
     STRATEGY_STEPS = 125
 
-    task_mode: str = field(default=MODE_ENG_BERT_UNSUP)
+    task_mode: str = field(default='')
 
     # Trainer Arguments --
     output_dir: str = field(default='./output_dir')
