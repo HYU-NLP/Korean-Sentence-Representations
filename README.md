@@ -62,14 +62,15 @@ Below is important parameters of re-imple:
 
 # SimCSE_mul
 
-* random-permute: create positive pair from x by `t = x.split(); random.shuffle(t); permuted_examples.append(' '.join(t))`
-* Validated with kor sts-dev.tsv while training
-* Tested with kor sts-test.tsv with validation best score checkpoint while training
-* 'spearman' used for score
-* uniform_loss, align_loss is calculated w/ kor sts-test.tsv
-* m-bert: bert-base-multilingual-uncased
+* random-permute: create positive pair from x by `t = x.split(); random.shuffle(t); permuted_examples.append(' '.join(t))`.
+* Validated with kor sts-dev.tsv while training.
+* Tested with kor sts-test.tsv with validation best score checkpoint while training.
+* 'spearman' used for score.
+* uniform_loss, align_loss is calculated w/ kor sts-test.tsv.
+* m-bert: bert-base-multilingual-uncased.
 * `korean_news_data.sample.txt` is a sample of `korean_news_data.txt`, created as `$ head -50000 korean_news_data.txt > korean_news_data.sample.txt`.
 * `korean_news_data_1m.txt` is a sample of `korean_news_data.txt`, created as `$ head -1000000 korean_news_data.txt > korean_news_data_1m.txt`.
+* `wiki_corpus_len50_1m.txt`.
 
 #### Result
 
