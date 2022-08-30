@@ -171,6 +171,6 @@ Sup-SG-M-BERT
 
 SG-KoBERT
 
-* Used KoBERT based model (m-bert: skt/kobert-based-v1)
+* Used KoBERT based model (kobert: skt/kobert-based-v1)
 * Trained with snli_1.0_train.ko.tsv and korean_news_data.txt
 * Others are same as Sup-SG-M-BERT
