@@ -9,6 +9,7 @@ import torch
 import transformers
 from datasets import load_dataset
 from kobert_tokenizer import KoBERTTokenizer
+from konlpy.tag import Okt
 from transformers import (
     HfArgumentParser,
     TrainingArguments,
@@ -171,19 +172,37 @@ def main():
 
             column_names = train_dataset.column_names
 
-            def preprocess_function(examples, do_permute):
+            ####### okt ###########
+            okt = Okt()
+            okt_josa = 'Josa'
+            #######################
+
+            def preprocess_function(examples):
                 column_name = column_names[0]  # The only column name in unsup dataset
                 total = len(examples[column_name])  # Total len
 
-                if do_permute:
+                if training_args.is_mode_ran():
                     copied_examples = copy.deepcopy(examples[column_name])
-                    permuted_examples = []
+                    ran_permuted_examples = []
                     for example in copied_examples:
                         t = example.split()
                         random.shuffle(t)
-                        permuted_examples.append(' '.join(t))
+                        ran_permuted_examples.append(' '.join(t))
 
-                    copied = examples[column_name] + permuted_examples
+                    copied = examples[column_name] + ran_permuted_examples
+
+                elif training_args.is_mode_sov():
+                    copied_examples = copy.deepcopy(examples[column_name])
+                    sov_permuted_examples = []
+                    for example in copied_examples:
+                        example_pos = okt.pos(example)
+
+                        noun_josa = []
+                        noun_verb = []
+                        for pos in example_pos:
+                            word, tag = pos
+                            if tag == okt_josa:
+                                pass
 
                 else:
                     copied = examples[column_name] + examples[column_name]  # Repeat itself
@@ -196,16 +215,10 @@ def main():
 
                 return result
 
-            if training_args.is_mode_ran():
-                do_permute = True
-            else:
-                do_permute = False
-
             train_dataset = train_dataset.map(
                 preprocess_function,
                 batched=True,
                 remove_columns=column_names,
-                fn_kwargs={'do_permute': do_permute},
                 load_from_cache_file=False,
             )
 
@@ -302,6 +315,7 @@ class TrainingArguments(transformers.TrainingArguments):
     MODE_KOR_KRBERT = 'krbert'
     MODE_KOR_KRBERT_UNSUP = MODE_KOR_KRBERT + '_unsup'
     MODE_KOR_KRBERT_UNSUP_RAN = MODE_KOR_KRBERT + '_unsup_ran'
+    MODE_KOR_KRBERT_UNSUP_SOV = MODE_KOR_KRBERT + '_unsup_sov'
 
     MODE_ALL = [
         MODE_ENG_BERT_UNSUP,
@@ -318,6 +332,7 @@ class TrainingArguments(transformers.TrainingArguments):
         MODE_KOR_KRBERT,
         MODE_KOR_KRBERT_UNSUP,
         MODE_KOR_KRBERT_UNSUP_RAN,
+        MODE_KOR_KRBERT_UNSUP_SOV,
     ]
 
     STRATEGY = 'steps'
@@ -348,7 +363,7 @@ class TrainingArguments(transformers.TrainingArguments):
 
     # Non-Trainer Arguments --
     model_name_or_path: str = field(default='')  # Depends on task_mode
-    max_seq_length: int = field(default=32)
+    max_seq_length: int = field(default=-1)  # Must put
 
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
@@ -373,6 +388,7 @@ class TrainingArguments(transformers.TrainingArguments):
                 or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
                 or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP
                 or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_RAN
+                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_SOV
                 )
 
     def is_mode_ran(self):
@@ -381,6 +397,9 @@ class TrainingArguments(transformers.TrainingArguments):
                 or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
                 or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_RAN
                 )
+
+    def is_mode_sov(self):
+        return self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_SOV
 
     def is_mode_no_train(self):
         return self.task_mode == self.MODE_KOR_MBERT or self.task_mode == self.MODE_KOR_KOBERT
@@ -460,6 +479,7 @@ class TrainingArguments(transformers.TrainingArguments):
                 False
                 or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP
                 or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_RAN
+                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_SOV
         ):
             self.model_name_or_path = 'snunlp/KR-BERT-char16424'
             self.pooler_type = POOLER_TYPE_CLS
@@ -472,7 +492,10 @@ class TrainingArguments(transformers.TrainingArguments):
         # Check essential values --
 
         if self.pooler_type not in POOLER_TYPE_ALL:
-            raise ValueError(f'{self.pooler_type} is not a valid pooler type. Valid types are {POOLER_TYPE_ALL}.')
+            raise ValueError
+
+        if self.max_seq_length <= -1:
+            raise ValueError
 
 
 if __name__ == '__main__':

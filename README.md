@@ -8,7 +8,7 @@
    **:Note that `bert-base-uncased` has to be located in ConSERT/.**
 4. Run bash files to train models `bash commands/unsup-consert-base.sh`
 
-#### Implementation detalis
+#### Implementation details
 
 SentenceTransformer.py : inheriting two modules ,Transformer and Pooling, and there exist other inner functions such
 as `fit` to train the model, `encode` to eval the model    
@@ -20,18 +20,18 @@ layers (see codes line 713~965 for details)
 
 #### Result
 
-|              | **Model**   | **STS12** | **STS13** | **STS14** | **STS15** | **STS16** | **STSb** | **SICK-R** | **Avg.** |
-|--------------|-------------|-----------|-----------|-----------|-----------|-----------|----------|------------|----------|
-| **BASELINE** | unsup       | 64.64     | 78.49     | 69.07     | 79.72     | 75.95     | 73.97    | 67.31      | 72.74    |
-| **re-imple** | unsup       | 64.69     | 78.56     | 69.01     | 79.70     | 75.77     | 73.86    | 67.15      | 72.68    |
-| **BASELINE** | sup         | 69.93     | 76.00     | 72.15     | 78.59     | 73.53     | 76.10    | 73.01      | 74.19    |
-| **re-imple** | sup         | 69.16     | 73.38     | 71.06     | 77.77     | 73.79     | 75.81    | 72.20      | 73.31    |
-| **BASELINE** | sup-unsup   | 73.02     | 84.86     | 77.32     | 82.70     | 78.2      | 81.34    | 75.00      | 78.92    |
-| **re-imple** | sup-unsup   | 72.99     | 84.28     | 76.73     | 82.54     | 78.12     | 81.12    | 75.02      | 78.69    |
-| **BASELINE** | joint       | 70.92     | 79.98     | 74.88     | 81.76     | 76.46     | 78.99    | 78.15      | 77.31    |
-| **re-imple** | joint       | 70.47     | 78.73     | 73.80     | 70.94     | 76.03     | 77.75    | 77.70      | 76.49    |
-| **BASELINE** | joint-unsup | 74.46     | 84.19     | 77.08     | 83.77     | 78.55     | 81.37    | 77.01      | 79.49    |
-| **re-imple** | joint-unsup | 73.46     | 83.44     | 76.06     | 83.07     | 78.46     | 80.27    | 75.90      | 78.66    |
+|          | Model       | STS12 | STS13 | STS14 | STS15 | STS16 | STSb  | SICK-R | Avg.  |
+|----------|-------------|-------|-------|-------|-------|-------|-------|--------|-------|
+| BASELINE | unsup       | 64.64 | 78.49 | 69.07 | 79.72 | 75.95 | 73.97 | 67.31  | 72.74 |
+| re-imple | unsup       | 64.69 | 78.56 | 69.01 | 79.70 | 75.77 | 73.86 | 67.15  | 72.68 |
+| BASELINE | sup         | 69.93 | 76.00 | 72.15 | 78.59 | 73.53 | 76.10 | 73.01  | 74.19 |
+| re-imple | sup         | 69.16 | 73.38 | 71.06 | 77.77 | 73.79 | 75.81 | 72.20  | 73.31 |
+| BASELINE | sup-unsup   | 73.02 | 84.86 | 77.32 | 82.70 | 78.2  | 81.34 | 75.00  | 78.92 |
+| re-imple | sup-unsup   | 72.99 | 84.28 | 76.73 | 82.54 | 78.12 | 81.12 | 75.02  | 78.69 |
+| BASELINE | joint       | 70.92 | 79.98 | 74.88 | 81.76 | 76.46 | 78.99 | 78.15  | 77.31 |
+| re-imple | joint       | 70.47 | 78.73 | 73.80 | 70.94 | 76.03 | 77.75 | 77.70  | 76.49 |
+| BASELINE | joint-unsup | 74.46 | 84.19 | 77.08 | 83.77 | 78.55 | 81.37 | 77.01  | 79.49 |
+| re-imple | joint-unsup | 73.46 | 83.44 | 76.06 | 83.07 | 78.46 | 80.27 | 75.90  | 78.66 |
 
 data agumentation strategies settings      
 joint : token_cutoff(cutoff rate = 0.1), none     
@@ -46,12 +46,12 @@ Avg scores by 2 points compared to the results above
 
 #### Result
 
-|                      | **Model** | **STS12** | **STS13** | **STS14** | **STS15** | **STS16** | **STSb** | **SICK-R** | **Avg.** |
-|----------------------|-----------|-----------|-----------|-----------|-----------|-----------|----------|------------|----------|
-| **SimCSE-Bert_base** | unsup     | 68.40     | 82.41     | 74.38     | 80.91     | 78.56     | 76.85    | 72.23      | 76.25    |
-| **re-imple**         | unsup     | 67.65     | 81.59     | 74.10     | 81.12     | 75.97     | 77.94    | 70.99      | 76.14    |
-| **SimCSE-Bert_base** | sup       | 75.30     | 84.67     | 80.19     | 85.40     | 80.82     | 84.25    | 80.39      | 81.57    |
-| **re-imple**         | sup       | 75.57     | 81.82     | 78.94     | 85.87     | 81.57     | 84.27    | 80.25      | 81.18    |
+|                  | Model | STS12 | STS13 | STS14 | STS15 | STS16 | STSb  | SICK-R | Avg.  |
+|------------------|-------|-------|-------|-------|-------|-------|-------|--------|-------|
+| SimCSE-Bert_base | unsup | 68.40 | 82.41 | 74.38 | 80.91 | 78.56 | 76.85 | 72.23  | 76.25 |
+| re-imple         | unsup | 67.65 | 81.59 | 74.10 | 81.12 | 75.97 | 77.94 | 70.99  | 76.14 |
+| SimCSE-Bert_base | sup   | 75.30 | 84.67 | 80.19 | 85.40 | 80.82 | 84.25 | 80.39  | 81.57 |
+| re-imple         | sup   | 75.57 | 81.82 | 78.94 | 85.87 | 81.57 | 84.27 | 80.25  | 81.18 |
 
 Below is important parameters of re-imple:
 
@@ -62,24 +62,27 @@ Below is important parameters of re-imple:
 
 # SimCSE_mul
 
-* random-permute: create positive pair from x by `t = x.split(); random.shuffle(t); permuted_examples.append(' '.join(t))`.
+* random-permute: create positive pair from x
+  by `t = x.split(); random.shuffle(t); permuted_examples.append(' '.join(t))`.
 * Validated with kor sts-dev.tsv while training.
 * Tested with kor sts-test.tsv with validation best score checkpoint while training.
 * 'spearman' used for score.
 * uniform_loss, align_loss is calculated w/ kor sts-test.tsv.
 * m-bert: bert-base-multilingual-uncased.
 * Validate every 125 steps.
-* `korean_news_data.sample.txt` is a sample of `korean_news_data.txt`, created as `$ head -50000 korean_news_data_1m.txt > korean_news_data.sample.txt`.
+* `korean_news_data.sample.txt` is a sample of `korean_news_data_1m.txt`, created
+  as `$ head -50000 korean_news_data_1m.txt > korean_news_data.sample.txt`.
 
 #### Result
 
 Common parameters for below experiments:
-  * max_seq_length: 32
-  * per_device_train_batch_size: 64
-  * _n_gpu: 1
-  * seed: 42
 
-| **Model**                | Trained with                        | lr      | STS-B (dev)   | STS-B (test)   | uniform-align loss |
+* max_seq_length: 32
+* per_device_train_batch_size: 64
+* _n_gpu: 1
+* seed: 42
+
+| Model                    | Trained with                        | lr      | STS-B (dev)   | STS-B (test)   | uniform-align loss |
 |--------------------------|-------------------------------------|---------|---------------|----------------|--------------------|
 | m-bert                   | -                                   | -       | 0.3026        | 0.2226         |                    |
 | ko-bert                  | -                                   | -       | 0.3413        | 0.2566         |                    |
@@ -127,34 +130,51 @@ Common parameters for below experiments:
 | "                        | "                                   | 9e-05   | 0.7452        | 0.6850         | ?                  |
 | ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
 | Unsup-SimCSE-kr-bert     | wiki_corpus_len15_normalized_1m.txt | 1e-05   | 0.7721        | 0.6925         | ?                  |
-| "                        | "                                   | 2e-05   | 0.7917        | 0.7162         | ?                  |
 | "                        | "                                   | 3e-05   | 0.7967        | 0.7187         | ?                  |
-| "                        | "                                   | 4e-05   | 0.7884        | 0.7190         | ?                  |
 | "                        | "                                   | 5e-05   | 0.7301        | 0.6554         | ?                  |
-| "                        | "                                   | 6e-05   | 0.7624        | 0.7064         | ?                  |
 | "                        | "                                   | 7e-05   | 0.7662        | 0.6985         | ?                  |
-| "                        | "                                   | 8e-05   | 0.7449        | 0.6775         | ?                  |
 | " (w/ random-permute)    | "                                   | 1e-05   | 0.7709        | 0.6904         | ?                  |
-| "                        | "                                   | 2e-05   | 0.7775        | 0.7042         | ?                  |
 | "                        | "                                   | 3e-05   | 0.7721        | 0.7064         | ?                  |
-| "                        | "                                   | 4e-05   | 0.7636        | 0.6905         | ?                  |
 | "                        | "                                   | 5e-05   | 0.7608        | 0.6800         | ?                  |
-| "                        | "                                   | 6e-05   | 0.7584        | 0.6787         | ?                  |
 | "                        | "                                   | 7e-05   | 0.7676        | 0.6899         | ?                  |
-| "                        | "                                   | 8e-05   | 0.7598        | 0.6767         | ?                  |
+| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
+| Unsup-SimCSE-kr-bert     | wiki_corpus_len30_normalized_1m.txt | 1e-05   | 0.7629        | 0.6944         | ?                  |
+| "                        | "                                   | 3e-05   | 0.7782        | 0.7093         | ?                  |
+| "                        | "                                   | 5e-05   | 0.7677        | 0.6861         | ?                  |
+| "                        | "                                   | 7e-05   | 0.7679        | 0.6822         | ?                  |
+| " (w/ random-permute)    | "                                   | 1e-05   | 0.7429        | 0.6613         | ?                  |
+| "                        | "                                   | 3e-05   | 0.7793        | 0.6988         | ?                  |
+| "                        | "                                   | 5e-05   | 0.7582        | 0.6750         | ?                  |
+| "                        | "                                   | 7e-05   | 0.7589        | 0.6713         | ?                  |
+
+Common parameters for below experiments:
+
+* max_seq_length: 128
+* per_device_train_batch_size: 64
+* _n_gpu: 1
+* seed: 42
+
+| Model                 | Trained with                        | lr    | STS-B (dev) | STS-B (test) | uniform-align loss |
+|-----------------------|-------------------------------------|-------|-------------|--------------|--------------------|
+| Unsup-SimCSE-kr-bert  | wiki_corpus_len15_normalized_1m.txt | 1e-05 | 0.7889      | 0.7162       | ?                  |
+| "                     | "                                   | 3e-05 | 0.7779      | 0.7164       | ?                  |
+| "                     | "                                   | 5e-05 | 0.7769      | 0.7050       | ?                  |
+| " (w/ random-permute) | "                                   | 1e-05 | 0.7987      | 0.7382       | ?                  |
+| "                     | "                                   | 3e-05 | 0.8046      | 0.7411       | ?                  |
+| "                     | "                                   | 5e-05 | 0.7987      | 0.7385       | ?                  |
 
 # SG-BERT_kor
 
 #### Result
 
-| **Model**         | Trained with          | lr    | STS-B (dev) | STS-B (test) |
-|-------------------|-----------------------|-------|-------------|--------------|
-| m-bert            | -                     | -     | 0.3026      | 0.2226       |
-| Sup-SG-M-BERT     | snli_1.0_train.ko.tsv | 1e-05 | 0.7105      | 0.6265       |
-| "                 | "                     | 3e-05 | 0.7204      | 0.6321       |
-| "                 | "                     | 5e-05 | 0.7129      | 0.6267       |
-| SG-KoBERT         | "                     | 5e-05 | 0.6670      | 0.5529       |
-| "                 | korean_news_data.txt  | 5e-05 | 0.5856      | 0.4655       |
+| Model         | Trained with          | lr    | STS-B (dev) | STS-B (test) |
+|---------------|-----------------------|-------|-------------|--------------|
+| m-bert        | -                     | -     | 0.3026      | 0.2226       |
+| Sup-SG-M-BERT | snli_1.0_train.ko.tsv | 1e-05 | 0.7105      | 0.6265       |
+| "             | "                     | 3e-05 | 0.7204      | 0.6321       |
+| "             | "                     | 5e-05 | 0.7129      | 0.6267       |
+| SG-KoBERT     | "                     | 5e-05 | 0.6670      | 0.5529       |
+| "             | korean_news_data.txt  | 5e-05 | 0.5856      | 0.4655       |
 
 Sup-SG-M-BERT
 
