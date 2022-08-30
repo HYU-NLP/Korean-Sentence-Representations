@@ -191,7 +191,7 @@ def main():
 
                     copied = examples[column_name] + ran_permuted_examples
 
-                elif training_args.is_mode_sov():
+                elif training_args.is_mode_sov():   # FIXME implement here
                     copied_examples = copy.deepcopy(examples[column_name])
                     sov_permuted_examples = []
                     for example in copied_examples:
