@@ -146,6 +146,7 @@ def cl_forward(
         # Dummy vectors for allgather
         z1_list = [torch.zeros_like(z1) for _ in range(dist.get_world_size())]
         z2_list = [torch.zeros_like(z2) for _ in range(dist.get_world_size())]
+
         # Allgather
         dist.all_gather(tensor_list=z1_list, tensor=z1.contiguous())
         dist.all_gather(tensor_list=z2_list, tensor=z2.contiguous())
@@ -159,6 +160,7 @@ def cl_forward(
         z2 = torch.cat(z2_list, 0)
 
     cos_sim = cls.sim(z1.unsqueeze(1), z2.unsqueeze(0))
+
     # Hard negative
     if num_sent == 3:
         z1_z3_cos = cls.sim(z1.unsqueeze(1), z3.unsqueeze(0))
@@ -249,14 +251,15 @@ def cl_init(cls, config):
 class BertForCL(BertPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r'position_ids']
 
-    def __init__(self, config):
+    def __init__(self, config, args):
         super().__init__(config)
 
-        # Work around when "loading best model" on transformers package 4.2.1 version
-        self.temperature = BertForCL.temperature
-        self.hard_negative_weight = BertForCL.hard_negative_weight
-        self.pooler_type = BertForCL.pooler_type
-        self.mlp_only_train = BertForCL.mlp_only_train
+        self.args = args
+
+        self.temperature = args.temperature
+        self.hard_negative_weight = args.hard_negative_weight
+        self.pooler_type = args.pooler_type
+        self.mlp_only_train = args.mlp_only_train
 
         self.bert = BertModel(config, add_pooling_layer=False)
 
@@ -311,14 +314,15 @@ class BertForCL(BertPreTrainedModel):
 class RobertaForCL(RobertaPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r'position_ids']
 
-    def __init__(self, config):
+    def __init__(self, config, args):
         super().__init__(config)
 
-        # Work around when "loading best model" on transformers package 4.2.1 version
-        self.temperature = RobertaForCL.temperature
-        self.hard_negative_weight = RobertaForCL.hard_negative_weight
-        self.pooler_type = RobertaForCL.pooler_type
-        self.mlp_only_train = RobertaForCL.mlp_only_train
+        self.args = args
+
+        self.temperature = args.temperature
+        self.hard_negative_weight = args.hard_negative_weight
+        self.pooler_type = args.pooler_type
+        self.mlp_only_train = args.mlp_only_train
 
         self.roberta = RobertaModel(config, add_pooling_layer=False)
 

@@ -14,7 +14,7 @@ from transformers import (
     HfArgumentParser,
     TrainingArguments,
     set_seed,
-    BertTokenizer, BertConfig, PreTrainedTokenizerBase, BertModel
+    BertTokenizer, BertConfig, PreTrainedTokenizerBase, BertModel, EarlyStoppingCallback
 )
 
 from simcse_mul.models import BertForCL, RobertaForCL, POOLER_TYPE_CLS, POOLER_TYPE_ALL
@@ -57,8 +57,6 @@ def main():
     else:
         tokenizer = BertTokenizer.from_pretrained(training_args.model_name_or_path)
 
-    config = BertConfig.from_pretrained(training_args.model_name_or_path)
-
     train_dataset = None
 
     eval_dataset = load_dataset(
@@ -81,23 +79,25 @@ def main():
         model = BertModel.from_pretrained(training_args.model_name_or_path)
 
     else:
-        if 'roberta' in training_args.model_name_or_path:
-            # Work around when "loading best model" on transformers package 4.2.1 version
-            RobertaForCL.temperature = training_args.temperature
-            RobertaForCL.hard_negative_weight = training_args.hard_negative_weight
-            RobertaForCL.pooler_type = training_args.pooler_type
-            RobertaForCL.mlp_only_train = training_args.mlp_only_train
+        config = BertConfig.from_pretrained(training_args.model_name_or_path)
+        if training_args.is_mode_no_dropout():
+            config.hidden_dropout_prob = 0
+            config.classifier_dropout = 0
+            config.attention_probs_dropout_prob = 0
 
-            model = RobertaForCL.from_pretrained(training_args.model_name_or_path, config=config)
+        if 'roberta' in training_args.model_name_or_path:
+            model = RobertaForCL.from_pretrained(
+                training_args.model_name_or_path,
+                config=config,
+                args=training_args,
+            )
 
         else:
-            # Work around when "loading best model" on transformers package 4.2.1 version
-            BertForCL.temperature = training_args.temperature
-            BertForCL.hard_negative_weight = training_args.hard_negative_weight
-            BertForCL.pooler_type = training_args.pooler_type
-            BertForCL.mlp_only_train = training_args.mlp_only_train
-
-            model = BertForCL.from_pretrained(training_args.model_name_or_path, config=config)
+            model = BertForCL.from_pretrained(
+                training_args.model_name_or_path,
+                config=config,
+                args=training_args,
+            )
 
         if training_args.is_mode_sup():
             train_dataset = load_dataset(
@@ -172,28 +172,28 @@ def main():
 
             column_names = train_dataset.column_names
 
-            ####### okt ###########
-            okt = Okt()
-            okt_josa = 'Josa'
-            #######################
+            if training_args.is_mode_sov_alg1():
+                okt = Okt()
+                okt_josa = 'Josa'
 
             def preprocess_function(examples):
                 column_name = column_names[0]  # The only column name in unsup dataset
                 total = len(examples[column_name])  # Total len
 
-                if training_args.is_mode_ran():
+                if training_args.is_mode_sov_ran():
                     copied_examples = copy.deepcopy(examples[column_name])
-                    ran_permuted_examples = []
+                    permuted_examples = []
                     for example in copied_examples:
                         t = example.split()
                         random.shuffle(t)
-                        ran_permuted_examples.append(' '.join(t))
+                        permuted_examples.append(' '.join(t))
 
-                    copied = examples[column_name] + ran_permuted_examples
+                    copied = examples[column_name] + permuted_examples
 
-                elif training_args.is_mode_sov():   # FIXME implement here
+                elif training_args.is_mode_sov_alg1():
+                    # FIXME implement here
                     copied_examples = copy.deepcopy(examples[column_name])
-                    sov_permuted_examples = []
+                    permuted_examples = []
                     for example in copied_examples:
                         example_pos = okt.pos(example)
 
@@ -212,7 +212,6 @@ def main():
                 result = {}
                 for key in tokenized:
                     result[key] = [[tokenized[key][i], tokenized[key][i + total]] for i in range(total)]
-
                 return result
 
             train_dataset = train_dataset.map(
@@ -239,6 +238,12 @@ def main():
             bs = len(features)
             if bs == 0:
                 raise ValueError('Dataset is empty')
+
+            if training_args.is_mode_full_ran():
+                # Because there is no padding, attention_mask is all 1
+                # So only tokenized['input_ids'] shuffle is enough
+                for feature in features:
+                    random.shuffle(feature['input_ids'][0])
 
             num_sent = len(features[0]['input_ids'])
 
@@ -279,7 +284,8 @@ def main():
         args=training_args,
         data_collator=data_collator,
         train_dataset=train_dataset,
-        eval_dataset=eval_dataset
+        eval_dataset=eval_dataset,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
     )
 
     logger.info("***** Running Evaluate w/ valiation-set before training *****")
@@ -300,45 +306,26 @@ class TrainingArguments(transformers.TrainingArguments):
     Default arguments are assumed you are running Supervised SimCSE with korNLI with m-bert.
     """
 
-    MODE_ENG_BERT = 'en_bert'
-    MODE_ENG_BERT_UNSUP = MODE_ENG_BERT + '_unsup'
-    MODE_ENG_BERT_UNSUP_RAN = MODE_ENG_BERT + '_unsup_ran'
+    MODE_TRAIN_SUP = 'train-sup'
+    MODE_TRAIN_UNSUP = 'train-unsup'
+    MODE_TRAIN_NO = 'train-no'
 
-    MODE_KOR_MBERT = 'mbert'
-    MODE_KOR_MBERT_UNSUP = MODE_KOR_MBERT + '_unsup'
-    MODE_KOR_MBERT_SUP_HARD_NEG = MODE_KOR_MBERT + '_sup'
+    MODE_BERT = 'bert'
+    MODE_KRBERT = 'krbert'
+    MODE_KOBERT = 'kobert'
 
-    MODE_KOR_KOBERT = 'kobert'
-    MODE_KOR_KOBERT_UNSUP = MODE_KOR_KOBERT + '_unsup'
-    MODE_KOR_KOBERT_UNSUP_RAN = MODE_KOR_KOBERT + '_unsup_ran'
+    MODE_PERMUTE_NO = 'permute-no'
+    MODE_PERMUTE_FULL_RAN = 'permute-full-ran'
+    MODE_PERMUTE_SOV_RAN = 'permute-sov-ran'
+    MODE_PERMUTE_SOV_ALG1 = 'permute-sov-alg1'
 
-    MODE_KOR_KRBERT = 'krbert'
-    MODE_KOR_KRBERT_UNSUP = MODE_KOR_KRBERT + '_unsup'
-    MODE_KOR_KRBERT_UNSUP_RAN = MODE_KOR_KRBERT + '_unsup_ran'
-    MODE_KOR_KRBERT_UNSUP_SOV = MODE_KOR_KRBERT + '_unsup_sov'
-
-    MODE_ALL = [
-        MODE_ENG_BERT_UNSUP,
-        MODE_ENG_BERT_UNSUP_RAN,
-
-        MODE_KOR_MBERT,
-        MODE_KOR_MBERT_UNSUP,
-        MODE_KOR_MBERT_SUP_HARD_NEG,
-
-        MODE_KOR_KOBERT,
-        MODE_KOR_KOBERT_UNSUP,
-        MODE_KOR_KOBERT_UNSUP_RAN,
-
-        MODE_KOR_KRBERT,
-        MODE_KOR_KRBERT_UNSUP,
-        MODE_KOR_KRBERT_UNSUP_RAN,
-        MODE_KOR_KRBERT_UNSUP_SOV,
-    ]
+    MODE_DROPOUT_NO = 'dropout-no'
+    MODE_DROPOUT_YES = 'dropout-yes'
 
     STRATEGY = 'steps'
     STRATEGY_STEPS = 125
 
-    task_mode: str = field(default='')
+    task_mode: List[str] = field(default=None)  # Must put
 
     # Trainer Arguments --
     output_dir: str = field(default='./output_dir')
@@ -359,7 +346,7 @@ class TrainingArguments(transformers.TrainingArguments):
     per_device_train_batch_size: int = field(default=64)
     per_device_eval_batch_size: int = field(default=64)
 
-    learning_rate: float = field(default=1e-5)
+    learning_rate: float = field(default=0)  # Must put
 
     # Non-Trainer Arguments --
     model_name_or_path: str = field(default='')  # Depends on task_mode
@@ -377,124 +364,86 @@ class TrainingArguments(transformers.TrainingArguments):
     shuffle_dataset: int = field(default=-1)
 
     def is_mode_sup(self):
-        return self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG
+        return TrainingArguments.MODE_TRAIN_SUP in self.task_mode
 
     def is_mode_unsup(self):
-        return (False
-                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
-                or self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
-                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_RAN
-                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_SOV
-                )
+        return TrainingArguments.MODE_TRAIN_UNSUP in self.task_mode
 
-    def is_mode_ran(self):
-        return (False
-                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
-                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
-                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_RAN
-                )
+    def is_mode_full_ran(self):
+        return TrainingArguments.MODE_PERMUTE_FULL_RAN in self.task_mode
 
-    def is_mode_sov(self):
-        return self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_SOV
+    def is_mode_sov_ran(self):
+        return TrainingArguments.MODE_PERMUTE_SOV_RAN in self.task_mode
+
+    def is_mode_sov_alg1(self):
+        return TrainingArguments.MODE_PERMUTE_SOV_ALG1 in self.task_mode
 
     def is_mode_no_train(self):
-        return self.task_mode == self.MODE_KOR_MBERT or self.task_mode == self.MODE_KOR_KOBERT
+        return TrainingArguments.MODE_TRAIN_NO in self.task_mode
 
     def is_kobert_base(self):
-        return self.MODE_KOR_KOBERT in self.task_mode
+        return TrainingArguments.MODE_KOBERT in self.task_mode
+
+    def is_mode_no_dropout(self):
+        return TrainingArguments.MODE_DROPOUT_NO in self.task_mode
 
     def __post_init__(self):
         super().__post_init__()
 
         # Set values by task_mode --
 
-        if self.task_mode not in TrainingArguments.MODE_ALL:
-            raise ValueError(
-                f'{self.task_mode} is not a valid training_mode. Valid modes are {self.MODE_ALL}.'
-            )
-
-        elif (
-                False
-                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_ENG_BERT_UNSUP_RAN
-        ):
-            self.model_name_or_path = 'bert-base-uncased'
+        if TrainingArguments.MODE_TRAIN_UNSUP in self.task_mode:
             self.pooler_type = POOLER_TYPE_CLS
+            self.mlp_only_train = True
+        elif TrainingArguments.MODE_TRAIN_SUP in self.task_mode:
+            self.pooler_type = POOLER_TYPE_CLS
+            self.mlp_only_train = False
+        elif TrainingArguments.MODE_TRAIN_NO in self.task_mode:
+            pass
+        else:
+            raise ValueError
 
+        if TrainingArguments.MODE_BERT in self.task_mode:
+            self.model_name_or_path = 'bert-base-uncased'
             self.eval_file = './data/eng/sts-dev.csv'
             self.test_file = './data/eng/sts-test.csv'
-
-            self.mlp_only_train = True
-
-        elif self.task_mode == TrainingArguments.MODE_KOR_MBERT:
-            self.model_name_or_path = 'bert-base-multilingual-uncased'
-            self.pooler_type = POOLER_TYPE_CLS
-
-            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
-            self.test_file = './data/kor/KorSTS/sts-test.tsv'
-
-        elif self.task_mode == TrainingArguments.MODE_KOR_MBERT_SUP_HARD_NEG:
-            self.model_name_or_path = 'bert-base-multilingual-uncased'
-            self.pooler_type = POOLER_TYPE_CLS
-
-            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
-            self.test_file = './data/kor/KorSTS/sts-test.tsv'
-
-            self.mlp_only_train = False
-
-        elif self.task_mode == TrainingArguments.MODE_KOR_MBERT_UNSUP:
-            self.model_name_or_path = 'bert-base-multilingual-uncased'
-            self.pooler_type = POOLER_TYPE_CLS
-
-            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
-            self.test_file = './data/kor/KorSTS/sts-test.tsv'
-
-            self.mlp_only_train = True
-
-        elif self.task_mode == TrainingArguments.MODE_KOR_KOBERT:
+        elif TrainingArguments.MODE_KOBERT in self.task_mode:
             self.model_name_or_path = 'skt/kobert-base-v1'
-            self.pooler_type = POOLER_TYPE_CLS
-
             self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
-
-        elif (
-                False
-                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_KOR_KOBERT_UNSUP_RAN
-        ):
-            self.model_name_or_path = 'skt/kobert-base-v1'
-            self.pooler_type = POOLER_TYPE_CLS
-
-            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
-            self.test_file = './data/kor/KorSTS/sts-test.tsv'
-
-            self.mlp_only_train = True
-
-        elif (
-                False
-                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP
-                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_RAN
-                or self.task_mode == TrainingArguments.MODE_KOR_KRBERT_UNSUP_SOV
-        ):
+        elif TrainingArguments.MODE_KRBERT in self.task_mode:
             self.model_name_or_path = 'snunlp/KR-BERT-char16424'
-            self.pooler_type = POOLER_TYPE_CLS
-
             self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
+        else:
+            raise ValueError
 
-            self.mlp_only_train = True
+        if TrainingArguments.MODE_PERMUTE_NO in self.task_mode:
+            pass
+        elif TrainingArguments.MODE_PERMUTE_FULL_RAN in self.task_mode:
+            pass
+        elif TrainingArguments.MODE_PERMUTE_SOV_RAN in self.task_mode:
+            pass
+        elif TrainingArguments.MODE_PERMUTE_SOV_ALG1 in self.task_mode:
+            pass
+        else:
+            raise ValueError
+
+        if TrainingArguments.MODE_DROPOUT_NO in self.task_mode:
+            pass
+        elif TrainingArguments.MODE_DROPOUT_YES in self.task_mode:
+            pass
+        else:
+            raise ValueError
 
         # Check essential values --
 
-        if self.pooler_type not in POOLER_TYPE_ALL:
-            raise ValueError
-
-        if self.max_seq_length <= -1:
+        if (
+                self.pooler_type not in POOLER_TYPE_ALL
+                or self.max_seq_length <= -1
+                or self.learning_rate == 0
+                or not self.train_file
+        ):
             raise ValueError
 
 

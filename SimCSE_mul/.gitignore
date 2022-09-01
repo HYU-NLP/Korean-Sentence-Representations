@@ -140,7 +140,8 @@ result
 nli_for_simcse.csv
 wiki1m_for_simcse.txt
 korean_news_data.txt
-korean_news_data.zip
 korean_news_data_1m.txt
+korean_news_data_normalized_1m.txt
+wiki_corpus.sample.txt
 wiki_corpus_len15_normalized_1m.txt
 wiki_corpus_len30_normalized_1m.txt

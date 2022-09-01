@@ -67,13 +67,14 @@ Below is important parameters of re-imple:
 * Validated with kor sts-dev.tsv while training.
 * Tested with kor sts-test.tsv with validation best score checkpoint while training.
 * 'spearman' used for score.
-* uniform_loss, align_loss is calculated w/ kor sts-test.tsv.
-* m-bert: bert-base-multilingual-uncased.
+* uniform_loss, align_loss is calculated w/
+  kakaobrain KorSTS (test) for korean data results,
+  eng SentEval sts-b (test) for english data results.
 * Validate every 125 steps.
-* `korean_news_data.sample.txt` is a sample of `korean_news_data_1m.txt`, created
-  as `$ head -50000 korean_news_data_1m.txt > korean_news_data.sample.txt`.
 
 #### Result
+
+##### English data results
 
 Common parameters for below experiments:
 
@@ -82,70 +83,92 @@ Common parameters for below experiments:
 * _n_gpu: 1
 * seed: 42
 
-| Model                    | Trained with                        | lr      | STS-B (dev)   | STS-B (test)   | uniform-align loss |
-|--------------------------|-------------------------------------|---------|---------------|----------------|--------------------|
-| m-bert                   | -                                   | -       | 0.3026        | 0.2226         |                    |
-| ko-bert                  | -                                   | -       | 0.3413        | 0.2566         |                    |
-| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
-| Sup-SimCSE-m-bert        | snli_1.0_train.ko.tsv               | 1e-05   | 0.7650        | 0.6937         | (-2.0897, 0.2540)  |
-| "                        | "                                   | 3e-05   | 0.7644        | 0.6996         | (-2.0793, 0.2434)  |
-| "                        | "                                   | 5e-05   | 0.7559        | 0.6929         | (-2.1024, 0.2476)  |
-| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
-| Unsup-SimCSE-bert-base   | wiki1m_for_simcse.txt               | 1e-05   | 0.8191        | 0.7854         | (-1.8364, 0.2158)  |
-| " (w/ random-permute)    | "                                   | 1e-05   | 0.8096        | 0.7612         | (-1.8559, 0.2129)  |
-| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
-| Unsup-SimCSE-ko-bert     | korean_news_data.sample.txt         | 1e-05   | 0.6307        | 0.5528         | (-2.1972, 0.4252)  |
-| "                        | "                                   | 3e-05   | 0.6599        | 0.5777         | (-2.2318, 0.4037)  |
-| "                        | "                                   | 5e-05   | 0.6731        | 0.5974         | (-2.2215, 0.3833)  |
-| " (w/ random-permute)    | "                                   | 1e-05   | 0.7171        | 0.6348         | (-1.8739, 0.2740)  |
-| " (w/ random-permute)    | "                                   | 3e-05   | 0.7383        | 0.6550         | (-1.9860, 0.2874)  |
-| " (w/ random-permute)    | "                                   | 5e-05   | 0.7471        | 0.6520         | (-2.0237, 0.2757)  |
-| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
-| Unsup-SimCSE-ko-bert     | korean_news_data_1m.txt             | 1e-05   | 0.7143        | 0.6453         | ?                  |
-| "                        | "                                   | 3e-05   | 0.6820        | 0.6165         | ?                  |
-| "                        | "                                   | 5e-05   | 0.6813        | 0.6286         | ?                  |
-| "                        | "                                   | 7e-05   | 0.6894        | 0.6207         | ?                  |
-| " (w/ random-permute)    | "                                   | 1e-05   | 0.7776        | 0.6952         | ?                  |
-| " (w/ random-permute)    | "                                   | 3e-05   | 0.7696        | 0.6962         | ?                  |
-| " (w/ random-permute)    | "                                   | 5e-05   | 0.7270        | 0.6426         | ?                  |
-| " (w/ random-permute)    | "                                   | 7e-05   | 0.7289        | 0.6415         | ?                  |
-| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
-| Unsup-SimCSE-ko-bert     | korean_news_data_1m.txt (shuffle)   | 1e-05   | 0.6886        | 0.6315         | ?                  |
-| "                        | "                                   | 3e-05   | 0.6005        | 0.52688        | ?                  |
-| "                        | "                                   | 5e-05   | 0.6182        | 0.5138         | ?                  |
-| "                        | "                                   | 7e-05   | 0.5870        | 0.5235         | ?                  |
-| " (w/ random-permute)    | "                                   | 1e-05   | 0.7808        | 0.6897         | ?                  |
-| " (w/ random-permute)    | "                                   | 3e-05   | 0.7636        | 0.6835         | ?                  |
-| " (w/ random-permute)    | "                                   | 5e-05   | 0.7367        | 0.6577         | ?                  |
-| " (w/ random-permute)    | "                                   | 7e-05   | 0.7152        | 0.6208         | ?                  |
-| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
-| Unsup-SimCSE-kr-bert     | korean_news_data_1m.txt             | 3e-05   | 0.7347        | 0.6795         | ?                  |
-| "                        | "                                   | 5e-05   | 0.7092        | 0.6463         | ?                  |
-| "                        | "                                   | 7e-05   | 0.7441        | 0.6742         | ?                  |
-| "                        | "                                   | 9e-05   | 0.7269        | 0.6515         | ?                  |
-| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
-| Unsup-SimCSE-kr-bert     | korean_news_data_1m.txt (shuffle)   | 3e-05   | 0.7337        | 0.6722         | ?                  |
-| "                        | "                                   | 5e-05   | 0.6804        | 0.6254         | ?                  |
-| "                        | "                                   | 7e-05   | 0.6908        | 0.6308         | ?                  |
-| "                        | "                                   | 9e-05   | 0.7452        | 0.6850         | ?                  |
-| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
-| Unsup-SimCSE-kr-bert     | wiki_corpus_len15_normalized_1m.txt | 1e-05   | 0.7721        | 0.6925         | ?                  |
-| "                        | "                                   | 3e-05   | 0.7967        | 0.7187         | ?                  |
-| "                        | "                                   | 5e-05   | 0.7301        | 0.6554         | ?                  |
-| "                        | "                                   | 7e-05   | 0.7662        | 0.6985         | ?                  |
-| " (w/ random-permute)    | "                                   | 1e-05   | 0.7709        | 0.6904         | ?                  |
-| "                        | "                                   | 3e-05   | 0.7721        | 0.7064         | ?                  |
-| "                        | "                                   | 5e-05   | 0.7608        | 0.6800         | ?                  |
-| "                        | "                                   | 7e-05   | 0.7676        | 0.6899         | ?                  |
-| ------------------------ | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
-| Unsup-SimCSE-kr-bert     | wiki_corpus_len30_normalized_1m.txt | 1e-05   | 0.7629        | 0.6944         | ?                  |
-| "                        | "                                   | 3e-05   | 0.7782        | 0.7093         | ?                  |
-| "                        | "                                   | 5e-05   | 0.7677        | 0.6861         | ?                  |
-| "                        | "                                   | 7e-05   | 0.7679        | 0.6822         | ?                  |
-| " (w/ random-permute)    | "                                   | 1e-05   | 0.7429        | 0.6613         | ?                  |
-| "                        | "                                   | 3e-05   | 0.7793        | 0.6988         | ?                  |
-| "                        | "                                   | 5e-05   | 0.7582        | 0.6750         | ?                  |
-| "                        | "                                   | 7e-05   | 0.7589        | 0.6713         | ?                  |
+| Model                             | Trained with          | lr    | STS-B (dev) | STS-B (test) | uniform-align loss |
+|-----------------------------------|-----------------------|-------|-------------|--------------|--------------------|
+| Unsup-SimCSE-bert-base            | wiki1m_for_simcse.txt | 1e-05 | 0.8191      | 0.7854       | (-1.8364, 0.2158)  |
+| "                                 | "                     | 3e-05 | 0.8186      | 0.7511       | ?                  |
+| "                                 | "                     | 5e-05 | 0.8211      | 0.7708       | ?                  |
+| "                                 | "                     | 7e-05 | 0.8088      | 0.7480       | ?                  |
+| " (w/ permute-by-space-sep-token) | "                     | 1e-05 | 0.8096      | 0.7612       | (-1.8559, 0.2129)  |
+| " (w/ permute-by-space-sep-token) | "                     | 3e-05 | 0.8127      | 0.7567       | ?                  |
+| " (w/ permute-by-space-sep-token) | "                     | 5e-05 | 0.8064      | 0.7622       | ?                  |
+| " (w/ permute-by-space-sep-token) | "                     | 7e-05 | 0.7994      | 0.7396       | ?                  |
+
+##### Korean data results
+
+Common parameters for below experiments:
+
+* max_seq_length: 32
+* per_device_train_batch_size: 64
+* _n_gpu: 1
+* seed: 42
+
+| Model                                        | Trained with                        | lr      | STS-B (dev)   | STS-B (test)   | uniform-align loss |
+|----------------------------------------------|-------------------------------------|---------|---------------|----------------|--------------------|
+| Unsup-SimCSE-ko-bert                         | korean_news_data_1m.txt             | 1e-05   | 0.7143        | 0.6453         | ?                  |
+| "                                            | "                                   | 3e-05   | 0.6820        | 0.6165         | ?                  |
+| "                                            | "                                   | 5e-05   | 0.6813        | 0.6286         | ?                  |
+| "                                            | "                                   | 7e-05   | 0.6894        | 0.6207         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 1e-05   | 0.7776        | 0.6952         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 3e-05   | 0.7696        | 0.6962         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 5e-05   | 0.7270        | 0.6426         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 7e-05   | 0.7289        | 0.6415         | ?                  |
+| -------------------------------------------- | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
+| Unsup-SimCSE-ko-bert                         | wiki_corpus_len15_normalized_1m.txt | 1e-05   | 0.7296        | 0.6722         | ?                  |
+| "                                            | "                                   | 3e-05   | 0.7480        | 0.7032         | ?                  |
+| "                                            | "                                   | 5e-05   | 0.7182        | 0.6617         | ?                  |
+| "                                            | "                                   | 7e-05   | 0.7001        | 0.6257         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 1e-05   | 0.7817        | 0.6986         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 3e-05   | 0.7654        | 0.6860         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 5e-05   | 0.7474        | 0.6585         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 7e-05   | 0.7558        | 0.6692         | ?                  |
+| -------------------------------------------- | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
+| Unsup-SimCSE-kr-bert                         | korean_news_data_1m.txt             | 1e-05   | 0.7064        | 0.6493         | ?                  |
+| "                                            | "                                   | 3e-05   | 0.7347        | 0.6795         | ?                  |
+| "                                            | "                                   | 5e-05   | 0.7093        | 0.6463         | ?                  |
+| "                                            | "                                   | 7e-05   | 0.7446        | 0.6746         | ?                  |
+| " (w/ permute-by-space-sep-token wo dropout) | "                                   | 1e-05   | 0.7193        | 0.6233         | ?                  |
+| " (w/ permute-by-space-sep-token wo dropout) | "                                   | 3e-05   | 0.7335        | 0.6513         | ?                  |
+| " (w/ permute-by-space-sep-token wo dropout) | "                                   | 5e-05   | 0.7499        | 0.6709         | ?                  |
+| " (w/ permute-by-space-sep-token wo dropout) | "                                   | 7e-05   | 0.7500        | 0.6711         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 1e-05   | 0.7504        | 0.6779         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 3e-05   | 0.7547        | 0.6762         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 5e-05   | 0.7475        | 0.6592         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 7e-05   | 0.7413        | 0.6691         | ?                  |
+| " (w/ permute-by-tokenizer-token wo dropout) | "                                   | 1e-05   | 0.7344        | 0.6690         | ?                  |
+| " (w/ permute-by-tokenizer-token wo dropout) | "                                   | 3e-05   | 0.7586        | 0.6827         | ?                  |
+| " (w/ permute-by-tokenizer-token wo dropout) | "                                   | 5e-05   | 0.7625        | 0.6885         | ?                  |
+| " (w/ permute-by-tokenizer-token wo dropout) | "                                   | 7e-05   | 0.7111        | 0.6468         | ?                  |
+| " (w/ permute-by-tokenizer-token)            | "                                   | 1e-05   | 0.7666        | 0.7074         | ?                  |
+| " (w/ permute-by-tokenizer-token)            | "                                   | 3e-05   | 0.7590        | 0.7021         | ?                  |
+| " (w/ permute-by-tokenizer-token)            | "                                   | 5e-05   | 0.7577        | 0.6981         | ?                  |
+| " (w/ permute-by-tokenizer-token)            | "                                   | 7e-05   | 0.7429        | 0.6747         | ?                  |
+| -------------------------------------------- | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
+| Unsup-SimCSE-kr-bert                         | korean_news_data_normalized_1m.txt  | 1e-05   | ?             | ?              | ?                  |
+| "                                            | "                                   | 3e-05   | ?             | ?              | ?                  |
+| "                                            | "                                   | 5e-05   | ?             | ?              | ?                  |
+| "                                            | "                                   | 7e-05   | ?             | ?              | ?                  |
+| -------------------------------------------- | ----------------------------------- | ------- | ------------- | -------------- | ------------------ |
+| Unsup-SimCSE-kr-bert                         | wiki_corpus_len15_normalized_1m.txt | 1e-05   | 0.7721        | 0.6925         | ?                  |
+| "                                            | "                                   | 3e-05   | 0.7967        | 0.7187         | ?                  |
+| "                                            | "                                   | 5e-05   | 0.7301        | 0.6554         | ?                  |
+| "                                            | "                                   | 7e-05   | 0.7662        | 0.6985         | ?                  |
+| " (w/ permute-by-space-sep-token wo dropout) | "                                   | 1e-05   | 0.7282        | 0.6502         | ?                  |
+| " (w/ permute-by-space-sep-token wo dropout) | "                                   | 3e-05   | 0.7451        | 0.6590         | ?                  |
+| " (w/ permute-by-space-sep-token wo dropout) | "                                   | 5e-05   | 0.7445        | 0.6491         | ?                  |
+| " (w/ permute-by-space-sep-token wo dropout) | "                                   | 7e-05   | 0.7376        | 0.6787         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 1e-05   | 0.7708        | 0.6898         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 3e-05   | 0.7760        | 0.7101         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 5e-05   | 0.7588        | 0.6840         | ?                  |
+| " (w/ permute-by-space-sep-token)            | "                                   | 7e-05   | 0.7675        | 0.6900         | ?                  |
+| " (w/ permute-by-tokenizer-token wo dropout) | "                                   | 1e-05   | 0.7590        | 0.6973         | ?                  |
+| " (w/ permute-by-tokenizer-token wo dropout) | "                                   | 3e-05   | 0.7599        | 0.6987         | ?                  |
+| " (w/ permute-by-tokenizer-token wo dropout) | "                                   | 5e-05   | 0.7354        | 0.6707         | ?                  |
+| " (w/ permute-by-tokenizer-token wo dropout) | "                                   | 7e-05   | 0.7308        | 0.6488         | ?                  |
+| " (w/ permute-by-tokenizer-token)            | "                                   | 1e-05   | 0.7774        | 0.7045         | ?                  |
+| " (w/ permute-by-tokenizer-token)            | "                                   | 3e-05   | 0.7669        | 0.6971         | ?                  |
+| " (w/ permute-by-tokenizer-token)            | "                                   | 5e-05   | 0.7591        | 0.6900         | ?                  |
+| " (w/ permute-by-tokenizer-token)            | "                                   | 7e-05   | 0.7620        | 0.6918         | ?                  |
 
 Common parameters for below experiments:
 
@@ -154,14 +177,20 @@ Common parameters for below experiments:
 * _n_gpu: 1
 * seed: 42
 
-| Model                 | Trained with                        | lr    | STS-B (dev) | STS-B (test) | uniform-align loss |
-|-----------------------|-------------------------------------|-------|-------------|--------------|--------------------|
-| Unsup-SimCSE-kr-bert  | wiki_corpus_len15_normalized_1m.txt | 1e-05 | 0.7889      | 0.7162       | (-1.7571, 0.2669)  |
-| "                     | "                                   | 3e-05 | 0.7779      | 0.7164       | (-1.8360, 0.2735)  |
-| "                     | "                                   | 5e-05 | 0.7769      | 0.7050       | (-1.9990, 0.3155)  |
-| " (w/ random-permute) | "                                   | 1e-05 | 0.7987      | 0.7382       | (-1.7547, 0.2516)  |
-| "                     | "                                   | 3e-05 | 0.8046      | 0.7411       | (-1.8084, 0.2633)  |
-| "                     | "                                   | 5e-05 | 0.7987      | 0.7385       | (-1.8612, 0.2720)  |
+| Model                             | Trained with                        | lr    | STS-B (dev) | STS-B (test) | uniform-align loss |
+|-----------------------------------|-------------------------------------|-------|-------------|--------------|--------------------|
+| Unsup-SimCSE-kr-bert              | wiki_corpus_len15_normalized_1m.txt | 1e-05 | 0.7889      | 0.7162       | (-1.7571, 0.2669)  |
+| "                                 | "                                   | 2e-05 | 0.7837      | 0.7157       | -                  |
+| "                                 | "                                   | 3e-05 | 0.7779      | 0.7164       | (-1.8360, 0.2735)  |
+| "                                 | "                                   | 4e-05 | 0.7617      | 0.6978       | -                  |
+| "                                 | "                                   | 5e-05 | 0.7769      | 0.7050       | (-1.9990, 0.3155)  |
+| "                                 | "                                   | 6e-05 | 0.7665      | 0.6964       | -                  |
+| " (w/ permute-by-space-sep-token) | "                                   | 1e-05 | 0.7987      | 0.7382       | (-1.7547, 0.2516)  |
+| " (w/ permute-by-space-sep-token) | "                                   | 2e-05 | 0.8066      | 0.7429       | -                  |
+| " (w/ permute-by-space-sep-token) | "                                   | 3e-05 | 0.8046      | 0.7411       | (-1.8084, 0.2633)  |
+| " (w/ permute-by-space-sep-token) | "                                   | 4e-05 | 0.8028      | 0.7354       | -                  |
+| " (w/ permute-by-space-sep-token) | "                                   | 5e-05 | 0.7987      | 0.7385       | (-1.8612, 0.2720)  |
+| " (w/ permute-by-space-sep-token) | "                                   | 6e-05 | 0.7917      | 0.7188       | -                  |
 
 # SG-BERT_kor
 
