@@ -103,14 +103,14 @@ Common parameters for below experiments:
 
 | Model                             | Trained with          | lr    | STS-B (dev) | STS-B (test) |
 |-----------------------------------|-----------------------|-------|-------------|--------------|
-| Unsup-SimCSE-bert-base            | wiki1m_for_simcse.txt | 1e-05 | ?           | ?            |
-| "                                 | "                     | 3e-05 | ?           | ?            |
-| "                                 | "                     | 5e-05 | ?           | ?            |
-| "                                 | "                     | 7e-05 | ?           | ?            |
-| " (w/ permute-by-space-sep-token) | "                     | 1e-05 | ?           | ?            |
-| " (w/ permute-by-space-sep-token) | "                     | 3e-05 | ?           | ?            |
-| " (w/ permute-by-space-sep-token) | "                     | 5e-05 | ?           | ?            |
-| " (w/ permute-by-space-sep-token) | "                     | 7e-05 | ?           | ?            |
+| Unsup-SimCSE-bert-base            | wiki1m_for_simcse.txt | 1e-05 | 0.8016      | 0.7607       |
+| "                                 | "                     | 3e-05 | 0.8250      | 0.7807       |
+| "                                 | "                     | 5e-05 | 0.8178      | 0.7538       |
+| "                                 | "                     | 7e-05 | 0.8025      | 0.7390       |
+| " (w/ permute-by-space-sep-token) | "                     | 1e-05 | 0.8418      | 0.7852       |
+| " (w/ permute-by-space-sep-token) | "                     | 3e-05 | 0.8385      | 0.7707       |
+| " (w/ permute-by-space-sep-token) | "                     | 5e-05 | 0.8343      | 0.7674       |
+| " (w/ permute-by-space-sep-token) | "                     | 7e-05 | 0.8308      | 0.7683       |
 | " (w/ permute-by-tokenizer-token) | "                     | 1e-05 | ?           | ?            |
 | " (w/ permute-by-tokenizer-token) | "                     | 3e-05 | ?           | ?            |
 | " (w/ permute-by-tokenizer-token) | "                     | 5e-05 | ?           | ?            |
