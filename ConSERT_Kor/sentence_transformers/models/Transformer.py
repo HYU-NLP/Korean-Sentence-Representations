@@ -40,8 +40,10 @@ class Transformer(nn.Module):
         if hidden_dropout_prob is not None:
             config.hidden_dropout_prob = hidden_dropout_prob
         self.auto_model = ConSERTModel.from_pretrained(model_name_or_path, config=config, cache_dir=cache_dir)
-        self.tokenizer = KoBERTTokenizer.from_pretrained('skt/kobert-base-v1', sp_model_kwargs={'nbest_size': -1, 'alpha': 0.6, 'enable_sampling': True})
-        #need to check options
+        if  "KR" in model_name_or_path: # krBERT 
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, cache_dir=cache_dir, **tokenizer_args)
+        elif  "kobert" in model_name_or_path: #kobert
+            self.tokenizer = KoBERTTokenizer.from_pretrained('skt/kobert-base-v1', sp_model_kwargs={'nbest_size': -1, 'alpha': 0.6, 'enable_sampling': True})
 
 
 
@@ -372,14 +374,22 @@ class ConSERTModel(BertModel):
             elif direction == "column":
                 num_dimensions = emb_size  # number of features
                 dim_index = 1
+            elif direction == "random":
+                num_dimensions = sample_mask.sum().int().item() * emb_size
+                dim_index = 0
             num_cutoff_indexes = int(num_dimensions * rate)
             indexes = list(range(num_dimensions))
             import random
             random.shuffle(indexes)
             cutoff_indexes = indexes[:num_cutoff_indexes]
+            if direction == "random":
+                sample_embedding = sample_embedding.reshape(-1)
             cutoff_embedding = torch.index_fill(sample_embedding, dim_index, torch.tensor(cutoff_indexes, dtype=torch.long).to(device=embedding_output.device), 0.0)
+            if direction == "random":
+                cutoff_embedding = cutoff_embedding.reshape(seq_len, emb_size)
             cutoff_embeddings.append(cutoff_embedding.unsqueeze(0))
             # cutoff_embedding = [seq_len, dim]
         cutoff_embeddings = torch.cat(cutoff_embeddings, 0)
+        assert cutoff_embeddings.shape == embedding_output.shape, (cutoff_embeddings.shape, embedding_output.shape)
         return cutoff_embeddings
         ########## ADDED ###########

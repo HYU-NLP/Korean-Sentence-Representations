@@ -85,7 +85,7 @@ class MyLoss(nn.Module):
         assert name in ("none", "shuffle", "token_cutoff", "feature_cutoff", "dropout")
         sentence_feature = self._recover_to_origin_keys(sentence_feature, ori_keys)
         cutoff_rate = self.args.cutoff_rate
-        if name == "none" or name == "dropout":
+        if name == "none":
             pass  # do nothing
         elif name == "shuffle":
             self.model[0].auto_model.set_flag("data_aug_shuffle", True)
@@ -96,6 +96,10 @@ class MyLoss(nn.Module):
         elif name == "feature_cutoff":
             self.model[0].auto_model.set_flag("data_aug_cutoff", True)
             self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "column")
+            self.model[0].auto_model.set_flag("data_aug_cutoff.rate", cutoff_rate)
+        elif name == "dropout":
+            self.model[0].auto_model.set_flag("data_aug_cutoff", True)
+            self.model[0].auto_model.set_flag("data_aug_cutoff.direction", "random")
             self.model[0].auto_model.set_flag("data_aug_cutoff.rate", cutoff_rate)
         rep = self.model(sentence_feature)["sentence_embedding"]
         return rep

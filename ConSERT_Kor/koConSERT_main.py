@@ -39,6 +39,8 @@ def main():
     parser.add_argument("--model_name_or_path", type=str, default="bert-base-uncased", help="The model path or model name of pre-trained model")
     parser.add_argument("--model_save_path", type=str, default=None, help="Custom output dir")
     parser.add_argument("--force_del", action="store_true", help="Delete the existing save_path and do not report an error")
+    parser.add_argument("--train_data", type=str, help="dataset for training")
+
     
     parser.add_argument("--no_dropout", action="store_true", help="only turn on when cutoff used")
     parser.add_argument("--batch_size", type=int, default=96, help="Training mini-batch size")
@@ -62,13 +64,13 @@ def main():
     parser.add_argument("--apex_amp_opt_level", type=str, default="O1", help="The opt_level argument in apex amp")
 
     ################# ADDED #################
-    parser.add_argument('--gpu', default=2, type=int) 
+    parser.add_argument('--gpu', default=0, type=int) 
     parser.add_argument('--train_way', default='unsup', type=str, choices=["unsup", "joint", "sup-unsup", "joint-unsup", "sup"])
 
     args = parser.parse_args()
     setattr(args, 'device', f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
 
-    if args.data_aug_strategy1 or args.data_aug_strategy2 in ["token_cutoff, feature_cutoff", "none"]:
+    if args.data_aug_strategy1 in ["token_cutoff", "feature_cutoff", "none"] or args.data_aug_strategy2 in ["token_cutoff", "feature_cutoff", "none"]:
         setattr(args, 'no_dropout', True)
 
     setattr(args, 'no_pair', True)
@@ -78,7 +80,7 @@ def main():
 
 
     # dataset path
-    korean_news_data_path = 'data/korean_news_data.txt'
+    korean_news_data_path = 'data/korean_news_data_1m.txt'
     korean_sts_dev_path = 'data/KorSTS/sts-dev.tsv'
     korean_sts_test_path = 'data/KorSTS/sts-test.tsv'
     # Read the dataset
@@ -111,9 +113,9 @@ def main():
 
 
     # Read dataset
-    logging.info("Read Korean_news_data")
+    logging.info(f"Read {args.train_data} file")
     train_samples = []
-    with open(korean_news_data_path, "r") as f:
+    with open(args.train_data, "r") as f:
         while True: # while true is not the appropriate coding style
             line = f.readline()
             if not line:
@@ -121,7 +123,7 @@ def main():
             train_samples.append(InputExample(texts=[line.strip()]))
 
     train_dataset = SentencesDataset(train_samples, model=model)
-    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=train_batch_size, num_workers=8)
+    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=train_batch_size)
 
     # initiate loss model
     train_loss = losses.MyLoss(args, model=model, sentence_embedding_dimension=model.get_sentence_embedding_dimension(), 
