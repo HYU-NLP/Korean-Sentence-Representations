@@ -1,4 +1,4 @@
-# Notes
+# Result
 
 * random-permute: create positive pair from x by `t = x.split(); random.shuffle(t); permuted_examples.append(' '.join(t))`.
 * Validated with kor sts-dev.tsv while training.
@@ -6,8 +6,6 @@
 * 'spearman' used for score.
 * Uniform_loss, Align_loss is calculated w/ kakaobrain KorSTS (test) for korean data results, eng SentEval sts-b (test) for english data results.
 * Validate every 125 steps.
-
-# Result
 
 Common parameters for below experiments:
 * Learning rate: 1e-05, 3e-05, 5e-05, 7e-05

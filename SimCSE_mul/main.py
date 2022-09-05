@@ -59,21 +59,29 @@ def main():
 
     train_dataset = None
 
-    eval_dataset = load_dataset(
-        'csv',
-        data_files={'valid': training_args.eval_file},
-        sep='\t',
-        quoting=csv.QUOTE_NONE,
-        split='valid',
-    )
+    if training_args.is_mode_eval_klue():
+        def format_label(batch):
+            return {'score': batch['labels']['label']}
 
-    test_dataset = load_dataset(
-        'csv',
-        data_files={'test': training_args.test_file},
-        sep='\t',
-        quoting=csv.QUOTE_NONE,
-        split='test',
-    )
+        valid_dataset = load_dataset('klue', 'sts', split='train[90%:]').map(format_label)
+        test_dataset = load_dataset('klue', 'sts', split='validation').map(format_label)
+
+    else:
+        valid_dataset = load_dataset(
+            'csv',
+            data_files={'valid': training_args.valid_file},
+            sep='\t',
+            quoting=csv.QUOTE_NONE,
+            split='valid',
+        )
+
+        test_dataset = load_dataset(
+            'csv',
+            data_files={'test': training_args.test_file},
+            sep='\t',
+            quoting=csv.QUOTE_NONE,
+            split='test',
+        )
 
     if training_args.is_mode_no_train():
         model = BertModel.from_pretrained(training_args.model_name_or_path)
@@ -284,7 +292,7 @@ def main():
         args=training_args,
         data_collator=data_collator,
         train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        eval_dataset=valid_dataset,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
     )
 
@@ -313,14 +321,18 @@ class TrainingArguments(transformers.TrainingArguments):
     MODE_BERT = 'bert'
     MODE_KRBERT = 'krbert'
     MODE_KOBERT = 'kobert'
+    MODE_KLUEBERT = 'kluebert'
 
-    MODE_PERMUTE_NO = 'permute-no'
+    MODE_EVAL_KAKAO = 'kakao'
+    MODE_EVAL_KLUE = 'klue'
+
+    # Will not permute if no below option exist
     MODE_PERMUTE_FULL_RAN = 'permute-full-ran'
     MODE_PERMUTE_SOV_RAN = 'permute-sov-ran'
     MODE_PERMUTE_SOV_ALG1 = 'permute-sov-alg1'
 
+    # Will do dropout if no below option exist
     MODE_DROPOUT_NO = 'dropout-no'
-    MODE_DROPOUT_YES = 'dropout-yes'
 
     STRATEGY = 'steps'
     STRATEGY_STEPS = 125
@@ -350,13 +362,13 @@ class TrainingArguments(transformers.TrainingArguments):
 
     # Non-Trainer Arguments --
     model_name_or_path: str = field(default='')  # Depends on task_mode
-    max_seq_length: int = field(default=-1)  # Must put
+    max_seq_length: int = field(default=32)
 
     temperature: float = field(default=0.05)
     hard_negative_weight: float = field(default=0)
 
     train_file: str = field(default='')  # Must put
-    eval_file: str = field(default='')  # Depends on task_mode
+    valid_file: str = field(default='')  # Depends on task_mode
     test_file: str = field(default='')  # Depends on task_mode
     pooler_type: str = field(default=None)  # Depends on task_mode
     mlp_only_train: Optional[bool] = field(default=None)  # Depends on task_mode
@@ -387,6 +399,9 @@ class TrainingArguments(transformers.TrainingArguments):
     def is_mode_no_dropout(self):
         return TrainingArguments.MODE_DROPOUT_NO in self.task_mode
 
+    def is_mode_eval_klue(self):
+        return TrainingArguments.MODE_EVAL_KLUE in self.task_mode
+
     def __post_init__(self):
         super().__post_init__()
 
@@ -405,36 +420,38 @@ class TrainingArguments(transformers.TrainingArguments):
 
         if TrainingArguments.MODE_BERT in self.task_mode:
             self.model_name_or_path = 'bert-base-uncased'
-            self.eval_file = './data/eng/sts-dev.csv'
-            self.test_file = './data/eng/sts-test.csv'
         elif TrainingArguments.MODE_KOBERT in self.task_mode:
             self.model_name_or_path = 'skt/kobert-base-v1'
-            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
-            self.test_file = './data/kor/KorSTS/sts-test.tsv'
         elif TrainingArguments.MODE_KRBERT in self.task_mode:
             self.model_name_or_path = 'snunlp/KR-BERT-char16424'
-            self.eval_file = './data/kor/KorSTS/sts-dev.tsv'
+        elif TrainingArguments.MODE_KLUEBERT in self.task_mode:
+            self.model_name_or_path = 'klue/bert-base'
+        else:
+            raise ValueError
+
+        if TrainingArguments.MODE_EVAL_KAKAO in self.task_mode:
+            # Only when it is not MODE_BERT
+            if TrainingArguments.MODE_BERT in self.task_mode:
+                raise ValueError
+
+            self.valid_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
-        else:
-            raise ValueError
+        elif TrainingArguments.MODE_EVAL_KLUE in self.task_mode:
+            # Only when it is not MODE_BERT
+            if TrainingArguments.MODE_BERT in self.task_mode:
+                raise ValueError
 
-        if TrainingArguments.MODE_PERMUTE_NO in self.task_mode:
-            pass
-        elif TrainingArguments.MODE_PERMUTE_FULL_RAN in self.task_mode:
-            pass
-        elif TrainingArguments.MODE_PERMUTE_SOV_RAN in self.task_mode:
-            pass
-        elif TrainingArguments.MODE_PERMUTE_SOV_ALG1 in self.task_mode:
-            pass
-        else:
-            raise ValueError
+            # Eval, Test files will be loaded by huggingface
+            self.valid_file = '-'
+            self.test_file = '-'
 
-        if TrainingArguments.MODE_DROPOUT_NO in self.task_mode:
-            pass
-        elif TrainingArguments.MODE_DROPOUT_YES in self.task_mode:
-            pass
         else:
-            raise ValueError
+            # Only when it is MODE_BERT
+            if TrainingArguments.MODE_BERT not in self.task_mode:
+                raise ValueError
+
+            self.valid_file = './data/eng/sts-dev.csv'
+            self.test_file = './data/eng/sts-test.csv'
 
         # Check essential values --
 
@@ -443,6 +460,8 @@ class TrainingArguments(transformers.TrainingArguments):
                 or self.max_seq_length <= -1
                 or self.learning_rate == 0
                 or not self.train_file
+                or not self.valid_file
+                or not self.test_file
         ):
             raise ValueError
 
