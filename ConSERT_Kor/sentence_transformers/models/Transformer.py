@@ -6,6 +6,8 @@ from typing import List, Dict, Optional, Union, Tuple, Any
 import os
 from kobert_tokenizer import KoBERTTokenizer
 import torch
+#from tokenization_ranked import FullTokenizer as KBertRankedTokenizer
+
 
 
 #model = SentenceTransformer(args.model_name_or_path) #model_name_or_path = bert_base
@@ -40,11 +42,11 @@ class Transformer(nn.Module):
         if hidden_dropout_prob is not None:
             config.hidden_dropout_prob = hidden_dropout_prob
         self.auto_model = ConSERTModel.from_pretrained(model_name_or_path, config=config, cache_dir=cache_dir)
-        if  "KR" in model_name_or_path: # krBERT 
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, cache_dir=cache_dir, **tokenizer_args)
-        elif  "kobert" in model_name_or_path: #kobert
+        if  "kobert" in model_name_or_path: #kobert
             self.tokenizer = KoBERTTokenizer.from_pretrained('skt/kobert-base-v1', sp_model_kwargs={'nbest_size': -1, 'alpha': 0.6, 'enable_sampling': True})
-
+        else: # this could be krBERT or klue-bert
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, cache_dir=cache_dir, **tokenizer_args)
+        
 
 
     def forward(self, features):

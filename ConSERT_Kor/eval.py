@@ -5,7 +5,7 @@ import argparse
 import csv
 from sentence_transformers import SentenceTransformer, InputExample, LoggingHandler
 from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator, SimilarityFunction
-
+from datasets import load_dataset
 
 logging.basicConfig(format='%(asctime)s - %(filename)s - %(levelname)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S',
@@ -35,25 +35,38 @@ def load_model(model_path: str, last2avg: bool = False, firstlastavg: bool = Fal
     logging.info("Model successfully loaded")
     return model
 
-def eval_KorSTS(model, batch_size=16, output_path="./", main_similarity=None):
+def eval_KorSTS(model, batch_size=16, output_path="./", main_similarity=None, test_path: str=None):
     logging.info("Evaluation on STSBenchmark dataset")
-    KorSTS_test_path = "./data/KorSTS/sts-test.tsv"
-    
-    test_samples=[]
-    with open(KorSTS_test_path, 'rt', encoding='utf8') as f:
-        reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONE)
-        for row in reader:
-            score = float(row['score']) / 5.0 #Normalize score to range 0 ... 1
-            test_samples.append(InputExample(texts=[row['sentence1'], row['sentence2']], label=score))
+    if test_path == None: # klue # hf load dataset
+        def format_label(batch):
+            return {'score': batch['labels']['label']}
+        test_set = load_dataset('klue', 'sts', split='validation').map(format_label)
+        test_samples=[]
+        for test in test_set:
+            test['score'] = float(test['score'])/5.0
+            test_samples.append(InputExample(texts=[test['sentence1'], test['sentence2']], label=test['score']))
+        logging.info(f"Loaded examples from klue_sts_test dataset, total {len(test_samples)} examples")
+        evaluator = EmbeddingSimilarityEvaluator.from_input_examples(test_samples, batch_size=batch_size, name='klue-test',
+                        main_similarity=SimilarityFunction.COSINE)
+        best_result = evaluator(model, output_path=output_path)
+        logging.info(f"Results on klue_sts_test: {best_result:.6f}")
 
-    logging.info(f"Loaded examples from KorSTS_test dataset, total {len(test_samples)} examples")
-    
-    evaluator = EmbeddingSimilarityEvaluator.from_input_examples(test_samples, batch_size=batch_size, name="KorSTS_test", main_similarity=main_similarity)
-    best_result = evaluator(model, output_path=output_path)
-    logging.info(f"Results on KorSTS_test: {best_result:.6f}")
-    return best_result
+    else: # kakao
+        test_samples=[]
+        with open(test_path, 'rt', encoding='utf8') as f:
+            reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONE)
+            for row in reader:
+                score = float(row['score']) / 5.0 #Normalize score to range 0 ... 1
+                test_samples.append(InputExample(texts=[row['sentence1'], row['sentence2']], label=score))
 
-def eval_nli_unsup(model_path, main_similarity=None, last2avg=False, firstlastavg=False, device: str =None):
+        logging.info(f"Loaded examples from KorSTS_test dataset, total {len(test_samples)} examples")
+        evaluator = EmbeddingSimilarityEvaluator.from_input_examples(test_samples, batch_size=batch_size, name="KorSTS_test", main_similarity=main_similarity)
+        best_result = evaluator(model, output_path=output_path)
+        logging.info(f"Results on kakako_STS_test: {best_result:.6f}")
+
+    return best_result    
+
+def eval_nli_unsup(model_path, main_similarity=None, last2avg=False, firstlastavg=False, device: str =None, test_path: str =None):
     model = load_model(model_path, last2avg=last2avg, firstlastavg=firstlastavg, device=device)
     if last2avg:
         output_path = os.path.join(model_path, "sts_eval_last2")
@@ -64,7 +77,7 @@ def eval_nli_unsup(model_path, main_similarity=None, last2avg=False, firstlastav
         
     if not os.path.exists(output_path):
         os.mkdir(output_path)
-    score = eval_KorSTS(model, output_path=output_path, main_similarity=main_similarity)
+    score = eval_KorSTS(model, output_path=output_path, main_similarity=main_similarity, test_path=test_path)
     return score
 
 

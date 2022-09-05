@@ -27,7 +27,7 @@ class SentencesDataset(Dataset):
         self.model = model
         self.examples = examples
         self.label_type = torch.long if isinstance(self.examples[0].label, int) else torch.float
-
+        
 
     def __getitem__(self, item):
         label = torch.tensor(self.examples[item].label, dtype=self.label_type)
