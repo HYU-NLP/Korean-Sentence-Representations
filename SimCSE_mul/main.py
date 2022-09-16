@@ -63,8 +63,8 @@ def main():
         def format_label(batch):
             return {'score': batch['labels']['label']}
 
-        valid_dataset = load_dataset('klue', 'sts', split='train[90%:]').map(format_label)
-        test_dataset = load_dataset('klue', 'sts', split='validation').map(format_label)
+        valid_dataset = load_dataset('klue', 'sts', split='validation[40%:]').map(format_label)
+        test_dataset = load_dataset('klue', 'sts', split='validation[:60%]').map(format_label)
 
     else:
         valid_dataset = load_dataset(
