@@ -53,11 +53,13 @@ def main():
     parser.add_argument("--cl_rate", type=float, default=0.15, help="The contrastive loss rate")
     parser.add_argument("--temperature", type=float, default=0.1, help="The temperature for contrastive loss")
     
+    # there is a priority in this order -> (none, shuffle, token_cutoff, feature_cutoff )
     parser.add_argument("--data_aug_strategy1", type=str, default=None, help="5 data augmentation strategies for view1 (none, shuffle, token_cutoff, feature_cutoff, dropout)")
     parser.add_argument("--data_aug_strategy2", type=str, default=None, help="5 data augmentation strategies for view2 (none, shuffle, token_cutoff, feature_cutoff, dropout)")
 
-    parser.add_argument("--patience", default=10, type=int, help="The patience for early stop")
+    parser.add_argument("--patience", default=None, type=int, help="The patience for early stop")
 
+    # should've used apex for batch size
     parser.add_argument("--use_apex_amp", action="store_false", help="Use apex amp or not")
     parser.add_argument("--apex_amp_opt_level", type=str, default="O1", help="The opt_level argument in apex amp")
 
@@ -163,17 +165,16 @@ def main():
         dev_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(dev_samples, batch_size=train_batch_size, name='kakao-dev',
                         main_similarity=SimilarityFunction.COSINE)
     elif args.dev_test_data == "klue":
-        def format_label(batch):
-            return {'score': batch['labels']['label']}
         logging.info(f"Read {args.dev_test_data} dev dataset")
-        dev_set = load_dataset('klue', 'sts', split='train[90%:]').map(format_label)
-        dev_samples=[]
-        for dev in dev_set:
-            dev['score'] = float(dev['score'])/5.0
-            dev_samples.append(InputExample(texts=[dev['sentence1'], dev['sentence2']], label=dev['score']))
+        dev_samples = []
+        with open("./data/klue-sts-dev.tsv", 'rt', encoding='utf8') as f:
+            reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONE)
+            for row in reader:
+                score = float(row['label']) / 5.0 #Normalize score to range 0 ... 1
+                dev_samples.append(InputExample(texts=[row['sentence1'], row['sentence2']], label=score))
         dev_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(dev_samples, batch_size=train_batch_size, name='klue-dev',
                         main_similarity=SimilarityFunction.COSINE)
-
+    
 
     # Configure the training
     num_epochs = args.num_epochs
