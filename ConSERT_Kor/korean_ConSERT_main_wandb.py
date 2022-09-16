@@ -20,6 +20,8 @@ import shutil
 import data_utils, eval
 from transformers import set_seed
 from datasets import load_dataset
+import wandb
+
 
 
 def set_seed(seed: int):
@@ -33,6 +35,9 @@ def set_seed(seed: int):
 
 
 def main():
+
+    wandb.init()
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--no_pair", action="store_true", help="If provided, do not pair two training texts") #일단 냅두자
     parser.add_argument("--seed", type=int, required=True, help="Random seed for reproducing experimental results")
@@ -53,11 +58,13 @@ def main():
     parser.add_argument("--cl_rate", type=float, default=0.15, help="The contrastive loss rate")
     parser.add_argument("--temperature", type=float, default=0.1, help="The temperature for contrastive loss")
     
+    # there is a priority in this order -> (none, shuffle, token_cutoff, feature_cutoff )
     parser.add_argument("--data_aug_strategy1", type=str, default=None, help="5 data augmentation strategies for view1 (none, shuffle, token_cutoff, feature_cutoff, dropout)")
     parser.add_argument("--data_aug_strategy2", type=str, default=None, help="5 data augmentation strategies for view2 (none, shuffle, token_cutoff, feature_cutoff, dropout)")
 
     parser.add_argument("--patience", default=10, type=int, help="The patience for early stop")
 
+    # should've used apex for batch size
     parser.add_argument("--use_apex_amp", action="store_false", help="Use apex amp or not")
     parser.add_argument("--apex_amp_opt_level", type=str, default="O1", help="The opt_level argument in apex amp")
 
@@ -75,6 +82,7 @@ def main():
     logging.info(f"Training arguments: {args.__dict__}")
     set_seed(args.seed)
 
+    
     model_name_or_path =None
     if args.model_name_or_path == "kobert":
         model_name_or_path = "skt/kobert-base-v1"
@@ -100,7 +108,7 @@ def main():
         pass # gonna fetch from huggingface
     assert args.dev_test_data in ["kakao", "klue"]
 
-
+    wandb.config.update(args)
 
     # Read the dataset
     train_batch_size = args.batch_size
@@ -130,6 +138,7 @@ def main():
 
     model.max_seq_length = args.max_seq_length
 
+    wandb.watch(model)
 
     # Read dataset
     logging.info(f"Read {args.train_data} file")
@@ -197,8 +206,8 @@ def main():
               early_stop_patience=args.patience)
 
     # Test
-    eval.eval_nli_unsup(model_save_path, main_similarity=SimilarityFunction.COSINE,last2avg=True, device= args.device, test_path=test_dataset_path)
-
+    test_score = eval.eval_nli_unsup(model_save_path, main_similarity=SimilarityFunction.COSINE,last2avg=True, device= args.device, test_path=test_dataset_path)
+    wandb.log({"test_score":test_score})
 
     
 
