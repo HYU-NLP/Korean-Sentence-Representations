@@ -63,6 +63,13 @@ def main():
         def format_label(batch):
             return {'score': batch['labels']['label']}
 
+        valid_dataset = load_dataset('klue', 'sts', split='train[90%:]').map(format_label)
+        test_dataset = load_dataset('klue', 'sts', split='validation').map(format_label)
+
+    elif training_args.is_mode_eval_klue_split_dev():
+        def format_label(batch):
+            return {'score': batch['labels']['label']}
+
         valid_dataset = load_dataset('klue', 'sts', split='validation[40%:]').map(format_label)
         test_dataset = load_dataset('klue', 'sts', split='validation[:60%]').map(format_label)
 
@@ -325,6 +332,7 @@ class TrainingArguments(transformers.TrainingArguments):
 
     MODE_EVAL_KAKAO = 'kakao'
     MODE_EVAL_KLUE = 'klue'
+    MODE_EVAL_KLUE_DEV_SPLIT = 'klue-dev-split'
 
     # Will not permute if no below option exist
     MODE_PERMUTE_FULL_RAN = 'permute-full-ran'
@@ -401,6 +409,9 @@ class TrainingArguments(transformers.TrainingArguments):
 
     def is_mode_eval_klue(self):
         return TrainingArguments.MODE_EVAL_KLUE in self.task_mode
+
+    def is_mode_eval_klue_split_dev(self):
+        return TrainingArguments.MODE_EVAL_KLUE_DEV_SPLIT in self.task_mode
 
     def __post_init__(self):
         super().__post_init__()
