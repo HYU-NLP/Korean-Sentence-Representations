@@ -70,7 +70,7 @@ def main():
     args = parser.parse_args()
     setattr(args, 'device', f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
 
-    if args.data_aug_strategy1 in ["token_cutoff", "feature_cutoff", "none"] or args.data_aug_strategy2 in ["token_cutoff", "feature_cutoff", "none"]:
+    if args.data_aug_strategy1 in ["token_cutoff", "feature_cutoff", "none", "dropout"] or args.data_aug_strategy2 in ["token_cutoff", "feature_cutoff", "none", "dropout"]:
         setattr(args, 'no_dropout', True)
 
     setattr(args, 'no_pair', True)
