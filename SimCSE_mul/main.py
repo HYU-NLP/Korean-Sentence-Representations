@@ -73,6 +73,20 @@ def main():
         valid_dataset = load_dataset('klue', 'sts', split='validation[40%:]').map(format_label)
         test_dataset = load_dataset('klue', 'sts', split='validation[:60%]').map(format_label)
 
+    elif training_args.is_mode_eval_klue_new_dev():
+        def format_label(batch):
+            return {'score': batch['labels']['label']}
+
+        valid_dataset = load_dataset(
+            'csv',
+            data_files={'valid': training_args.valid_file},
+            sep='\t',
+            quoting=csv.QUOTE_NONE,
+            split='valid',
+        ).shuffle(seed=101)
+
+        test_dataset = load_dataset('klue', 'sts', split='validation').map(format_label)
+
     else:
         valid_dataset = load_dataset(
             'csv',
@@ -332,6 +346,7 @@ class TrainingArguments(transformers.TrainingArguments):
 
     MODE_EVAL_KAKAO = 'kakao'
     MODE_EVAL_KLUE = 'klue'
+    MODE_EVAL_KLUE_NEW_DEV = 'klue-new-dev'
     MODE_EVAL_KLUE_DEV_SPLIT = 'klue-dev-split'
 
     # Will not permute if no below option exist
@@ -410,6 +425,9 @@ class TrainingArguments(transformers.TrainingArguments):
     def is_mode_eval_klue(self):
         return TrainingArguments.MODE_EVAL_KLUE in self.task_mode
 
+    def is_mode_eval_klue_new_dev(self):
+        return TrainingArguments.MODE_EVAL_KLUE_NEW_DEV in self.task_mode
+
     def is_mode_eval_klue_split_dev(self):
         return TrainingArguments.MODE_EVAL_KLUE_DEV_SPLIT in self.task_mode
 
@@ -447,13 +465,22 @@ class TrainingArguments(transformers.TrainingArguments):
 
             self.valid_file = './data/kor/KorSTS/sts-dev.tsv'
             self.test_file = './data/kor/KorSTS/sts-test.tsv'
-        elif TrainingArguments.MODE_EVAL_KLUE in self.task_mode:
+
+        elif self.is_mode_eval_klue() or self.is_mode_eval_klue_split_dev():
             # Only when it is not MODE_BERT
             if TrainingArguments.MODE_BERT in self.task_mode:
                 raise ValueError
 
             # Eval, Test files will be loaded by huggingface
             self.valid_file = '-'
+            self.test_file = '-'
+
+        elif self.is_mode_eval_klue_new_dev():
+            # Only when it is not MODE_BERT
+            if TrainingArguments.MODE_BERT in self.task_mode:
+                raise ValueError
+
+            self.valid_file = './data/kor/KLUE/klue-sts-dev-new.tsv'
             self.test_file = '-'
 
         else:
