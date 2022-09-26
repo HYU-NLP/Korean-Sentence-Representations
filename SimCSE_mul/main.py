@@ -393,7 +393,7 @@ class TrainingArguments(transformers.TrainingArguments):
     train_file: str = field(default='')  # Must put
     valid_file: str = field(default='')  # Depends on task_mode
     test_file: str = field(default='')  # Depends on task_mode
-    pooler_type: str = field(default=None)  # Depends on task_mode
+    pooler_type: str = field(default=None)  # Depends on task_mode, should set when train-no
     mlp_only_train: Optional[bool] = field(default=None)  # Depends on task_mode
 
     shuffle_dataset: int = field(default=-1)
@@ -443,7 +443,7 @@ class TrainingArguments(transformers.TrainingArguments):
             self.pooler_type = POOLER_TYPE_CLS
             self.mlp_only_train = False
         elif TrainingArguments.MODE_TRAIN_NO in self.task_mode:
-            pass
+            self.mlp_only_train = False
         else:
             raise ValueError
 

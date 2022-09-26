@@ -8,10 +8,10 @@ from transformers.models.bert.modeling_bert import BertPreTrainedModel, BertMode
 from transformers.models.roberta.modeling_roberta import RobertaPreTrainedModel, RobertaModel
 
 POOLER_TYPE_FIRST_LAST = 'avg_first_last'
-POOLER_TYPE_TOP2 = 'avg_top2'
+POOLER_TYPE_LAST_TOP2 = 'avg_last_top2'
 POOLER_TYPE_AVG = 'avg'
 POOLER_TYPE_CLS = 'cls'
-POOLER_TYPE_ALL = [POOLER_TYPE_CLS, POOLER_TYPE_AVG, POOLER_TYPE_TOP2, POOLER_TYPE_FIRST_LAST]
+POOLER_TYPE_ALL = [POOLER_TYPE_CLS, POOLER_TYPE_AVG, POOLER_TYPE_LAST_TOP2, POOLER_TYPE_FIRST_LAST]
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class Pooler(nn.Module):
             b = hidden_states[-1]
             pooled_result = ((a + b) / 2.0 * attention_mask.unsqueeze(-1)).sum(1) / attention_mask.sum(-1).unsqueeze(-1)
             return pooled_result
-        elif self.pooler_type == POOLER_TYPE_TOP2:
+        elif self.pooler_type == POOLER_TYPE_LAST_TOP2:
             a = hidden_states[-2]
             b = hidden_states[-1]
             pooled_result = ((a + b) / 2.0 * attention_mask.unsqueeze(-1)).sum(1) / attention_mask.sum(-1).unsqueeze(-1)
@@ -114,7 +114,7 @@ def cl_forward(
         head_mask=head_mask,
         inputs_embeds=inputs_embeds,
         output_attentions=output_attentions,
-        output_hidden_states=True if cls.pooler_type in [POOLER_TYPE_TOP2, POOLER_TYPE_FIRST_LAST] else False,
+        output_hidden_states=True if cls.pooler_type in [POOLER_TYPE_LAST_TOP2, POOLER_TYPE_FIRST_LAST] else False,
         return_dict=True,
     )
 
@@ -222,7 +222,7 @@ def sent_emb_forward(
         head_mask=head_mask,
         inputs_embeds=inputs_embeds,
         output_attentions=output_attentions,
-        output_hidden_states=True if cls.pooler_type in [POOLER_TYPE_TOP2, POOLER_TYPE_FIRST_LAST] else False,
+        output_hidden_states=True if cls.pooler_type in [POOLER_TYPE_LAST_TOP2, POOLER_TYPE_FIRST_LAST] else False,
         return_dict=True,
     )
 
