@@ -20,7 +20,7 @@ pip install -v --disable-pip-version-check --no-cache-dir ./
 ```
 
 #### Get Started
-Before run korean_ConSERT_main, train,dev,test datasets have to be placed in ConSERT_Kor/data/.
+Before run korean_ConSERT_main, Train, Dev and Test datasets have to be placed in ConSERT_Kor/data/.
 ```
 python3 -u korean_ConSERT_main.py \
 --seed 3 \
