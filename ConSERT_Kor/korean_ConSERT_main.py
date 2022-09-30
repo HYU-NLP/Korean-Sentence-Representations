@@ -1,23 +1,17 @@
-from ast import arg
 from torch.utils.data import DataLoader
 import math
 from sentence_transformers import models, losses
-from sentence_transformers import SentencesDataset, LoggingHandler, SentenceTransformer, util, InputExample
+from sentence_transformers import SentencesDataset, SentenceTransformer,InputExample
 from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator, SimilarityFunction
 import logging
-from datetime import datetime
-import sys
 import os
-import json
-import copy
-import gzip
 import csv
 import random
 import torch
 import numpy as np
 import argparse
 import shutil
-import data_utils, eval
+import eval
 from transformers import set_seed
 from datasets import load_dataset
 
@@ -34,7 +28,7 @@ def set_seed(seed: int):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--no_pair", action="store_true", help="If provided, do not pair two training texts") #일단 냅두자
+    parser.add_argument("--no_pair", action="store_true", help="If provided, do not pair two training texts") 
     parser.add_argument("--seed", type=int, required=True, help="Random seed for reproducing experimental results")
     parser.add_argument("--model_name_or_path", type=str, default="bert-base-uncased", help="The model path or model name of pre-trained model")
     parser.add_argument("--model_save_path", type=str, default=None, help="Custom output dir")
@@ -42,9 +36,9 @@ def main():
     parser.add_argument("--train_data", type=str, help="dataset for training")
     parser.add_argument("--dev_test_data", type=str, help="dev_test pair for dev and evaluation")
 
-    parser.add_argument("--no_dropout", action="store_true", help="only turn on when cutoff used")
+    parser.add_argument("--no_dropout", action="store_true")
     parser.add_argument("--batch_size", type=int, default=96, help="Training mini-batch size")
-    parser.add_argument("--num_epochs", type=int, default=10, help="Number of training epochs") # if consecutive is on, num_epochs = 1
+    parser.add_argument("--num_epochs", type=int, default=10, help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=7e-5, help="The learning rate")
     parser.add_argument("--evaluation_steps", type=int, default=200, help="The steps between every evaluations")
     parser.add_argument("--max_seq_length", type=int, default=64, help="The max sequence length")
@@ -58,12 +52,12 @@ def main():
 
     parser.add_argument("--patience", default=10, type=int, help="The patience for early stop")
 
+    # should've used apex for batch size
     parser.add_argument("--use_apex_amp", action="store_false", help="Use apex amp or not")
     parser.add_argument("--apex_amp_opt_level", type=str, default="O1", help="The opt_level argument in apex amp")
 
-    ################# ADDED #################
     parser.add_argument('--gpu', default=0, type=int) 
-    parser.add_argument('--train_way', default='unsup', type=str, choices=["unsup", "joint", "sup-unsup", "joint-unsup", "sup", "infer"])
+    parser.add_argument('--train_way', default='unsup', type=str, choices=["unsup", "joint", "sup-unsup", "joint-unsup", "sup"])
 
     args = parser.parse_args()
     setattr(args, 'device', f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
@@ -135,7 +129,7 @@ def main():
     logging.info(f"Read {args.train_data} file")
     train_samples = []
     with open(train_dataset_path, "r") as f:
-        while True: # while true is not the appropriate coding style
+        while True: 
             line = f.readline()
             if not line:
                 break
@@ -201,7 +195,6 @@ def main():
 
 
     
-
 
 if __name__ == "__main__":
     main()
