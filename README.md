@@ -1,8 +1,25 @@
 # Code of paper 'Comparison and Analysis of Unsupervised Contrastive Learning Approaches for Korean Sentence Representations'
 
-### How to run code
+## How to run code
 
-##### ConSERT_Kor
+### ConSERT_Kor
+
+#### Requirements
+```
+torch=1.10.0
+transformers=4.8.1
+python=3.9.13
+sentencepiece=0.1.96
+cudatoolkit=11.3
+```
+To install apex, run
+```
+git clone https://github.com/NVIDIA/apex
+cd apex
+pip install -v --disable-pip-version-check --no-cache-dir ./
+```
+
+####Get Started
 ```
 python3 -u korean_ConSERT_main.py \
 --seed 3 \
@@ -30,7 +47,9 @@ dev_test_data => choose one in [klue, kakao]
 data_aug_strategy1 and data_aug_strategy2 => each of them chooses one in [none, shuffle, token_cutoff, feature_cutoff, dropout]    
 model_save_path => your_output_dir    
 
-##### SimCSE_mul
+
+
+#### SimCSE_mul
 
 ```bash
 $ python main.py \
