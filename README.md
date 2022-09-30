@@ -3,6 +3,32 @@
 ### How to run code
 
 ##### ConSERT_Kor
+```
+python3 -u korean_ConSERT_main.py \
+--seed 3 \
+--gpu 1 \
+--batch_size 96 \
+--max_seq_length 64 \
+--train_data news \
+--dev_test_data klue \
+--train_way unsup \
+--temperature 0.1 \
+--learning_rate 5e-07 \
+--data_aug_strategy1 token_cutoff \
+--data_aug_strategy2 feature_cutoff \
+--cutoff_rate 0.2 \
+--model_name_or_path krbert \
+--force_del \
+--patience 10 \
+--model_save_path ./outputs/krbert-ConSERT-token_cutoff+feature_cutoff
+```
+
+Below are arguments for details   
+model_name_or_path => choose one in [kobert, krbert, klue_bert]   
+train_data => choose one in [news, wiki]   
+dev_test_data => choose one in [klue, kakao]   
+data_aug_strategy1 and data_aug_strategy2 => each of them chooses one in [none, shuffle, token_cutoff, feature_cutoff, dropout]    
+model_save_path => your_output_dir    
 
 ##### SimCSE_mul
 
